@@ -1,0 +1,23 @@
+name: shrink_pullback
+category: trend            # trend | pattern | reversal | framework
+market_regimes: [uptrend]
+default_priority: 10
+aliases: [low-volume pullback]
+required_tools: [get_daily_history, analyze_trend, search_stock_news]
+core_rules: [1, 2, 3, 4, 5]
+conditions:
+  - "MA5 > MA10 > MA20"
+  - "close within 1% of MA5 OR within 2% of MA10"
+  - "volume < 0.7 * avg_volume_5d"
+  - "abs(close/MA5 - 1) < 0.02"
+  - "no negative news in last 7 days"
+scoring:
+  pullback_to_ma5: +10
+  pullback_to_ma10_low_volume: +8
+plan:
+  entry: MA5
+  alt_entry: MA10
+  stop: MA20
+instructions: >
+  Confirm the trend with analyze_trend, then check the pullback depth and volume.
+  Any negative news vetoes the setup. Output score delta, entry, stop and reason with dated prices.
