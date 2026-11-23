@@ -59,5 +59,8 @@ Before a new entry, pull a small context from the data MCP server (earnings cale
 - **Overbought:** RSI(14) > 70 and within 5% of the 52-week high (buys) → size ×0.8.
 - **Market stress:** VIX > 30 → size ×0.7.
 - **Risk-off:** GLD ≥ +2%, TLT ≥ +1% and UUP ≥ +1% over 5 days together → size ×0.7.
+- **VIX backwardation:** VIX above VIX3M (`vix3m` in context) → size ×0.8.
+- **Event risk:** `event_risk` entries, each with a primary-source URL (wire report, government statement, company 8-K) and `exposure` direct (×0.7) or sector (×0.85). Entries without a URL are ignored: keyword hits on headlines are not evidence.
+- **Crypto BTC drag:** BTC down 10%+ in 5 days and the coin's 30-day correlation with BTC ≥ 0.7 → size ×0.7.
 Multipliers compound, floor 0.25, and can only shrink a trade. Exits are never blocked by these gates. Thresholds are heuristics from udiedrichsen/stock-analysis, not backtested; test them with permutation_test.py before trusting them as signals.
 
