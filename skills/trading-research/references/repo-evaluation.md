@@ -67,3 +67,11 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | Repo | License | Score | Role in this skill | Notes |
 |---|---|---|---|---|
 | udiedrichsen/stock-analysis | not found (no public repo located) | 2 | Event-timing gate ideas only | Yahoo-based scorer with hand-set weights summing to 130%, no backtest; keyword-based geopolitical penalties. Timing guards are the useful part |
+
+## hft.md sources (reviewed 2026-11-23)
+| Source | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| hft.md/grok-bots (235 Grok Bots) + awesome-grokbot-templates | list CC0; bots closed | 2 | Capability checklist only | Names, one-line descriptions and x.ai links; no prompts or code. Not MCP skills |
+| hft.md/crash/llms.txt | none stated | 4 | crash_guard.py rules, stress data sources | Clear formulas with worked numbers and stated failure modes; reimplemented, not copied |
+| stefanoamorelli/sec-edgar-mcp | AGPL-3.0 | 4 | Filings MCP server (external) | Docker config; returns SEC URLs |
+| JamesANZ/prediction-market-mcp | MIT | 3 | Prediction-market data MCP (external) | Read-only; movement evidence tool |
