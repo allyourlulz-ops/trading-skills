@@ -61,3 +61,7 @@ Withhold ticker, company name, industry, dates and dollar values; express size a
 
 ## Advice safety (aurelio-finance)
 Recommendations appear only as structured items with `reason`, `based_on`, `unknowns`, max 3 per answer. Sizing comes from code, within the user's investable cash after an emergency reserve (default 6 months of essential expenses if the user gives none). Upgrade conviction only with 2+ independent confirming sources.
+
+## From views to a portfolio (scripts/black_litterman.py)
+When the committee rates several names, don't size each in isolation. Write each rating as a view (`{"ticker":…,"conviction":-1..1,"confidence":0-100}`, or `{"long":…,"short":…}` for a pair; several analysts may view the same name) and run Black-Litterman: it starts from the market-implied returns, moves toward each view in proportion to its confidence, and returns target weights (`--long-only`, `--max-weight`). Abstaining personas send no view. A view the committee is unsure of barely moves the result, by design. Target weights then go through position_size.py and risk_check.py per order. Prices come from the data MCP server; the script itself makes no network calls.
+
