@@ -7,11 +7,23 @@
 | Crypto, rigorous, optimisation | freqtrade CLI (GPL-3.0; call as a tool, don't embed code) |
 | US equity, event-driven, teaching | zipline-reloaded (original quantopian/zipline is dead) |
 | China A-shares (T+1, limits) | tick-stock-panel `run_backtest` |
+| Intraday equities/crypto, same code backtest → paper → live | NautilusTrader (LGPL-3.0, `pip install nautilus_trader`) |
+| Intraday ML rules, walk-forward on minute bars, Alpaca data | PyBroker (`pip install lib-pybroker`; Apache-2.0 + Commons Clause) |
+| Sweeping thousands of parameter combos fast | vectorbt community edition (`pip install vectorbt`; Fair-code licence) |
+| Scalping / market making where queue position and latency matter | HftBacktest (MIT, `pip install hftbacktest`; needs L2 book + trade ticks) |
 | Factors / overfitting stats | QuantDinger `submit_factor_benchmark` or Vibe-Trading `alpha bench` |
 
 ### Lightweight Python options
 - **backtesting.py** (kernc/backtesting.py, AGPL-3.0): quick single-asset OHLCV backtests with `Backtest(df, Strategy, cash=..., commission=...)` and `bt.optimize(...)`. Run it as a separate dependency; don't copy its code into this skill (AGPL). Treat `optimize` output as in-sample until it passes the validation below.
 - **pyfolio-reloaded** (stefan-jansen, Apache-2.0): tearsheets from a returns series (`pf.create_returns_tear_sheet(returns, benchmark_rets=...)`). The original quantopian/pyfolio has had no updates since 2023; use the reloaded fork.
+
+### Day-trading engines (audited 2026-11-23)
+- **NautilusTrader**: Rust core, Python strategies, nanosecond event-driven sim on quote/trade ticks, bars and order books; the same strategy class runs live through adapters (IBKR, Binance, Bybit, Databento and more). Its docs list backtest-vs-live differences (venue, timing, reconciliation); read them before trusting a fill. Best choice when a strategy will go to paper/live. Heavier to set up. Use as a dependency (LGPL).
+- **PyBroker**: NumPy/Numba engine with built-in walk-forward (`strategy.walkforward(timeframe='1m', windows=5, train_size=0.5)`) and bootstrap metrics, so it covers rule 8 and the validation gates natively. Pulls Alpaca, Yahoo or AKShare data. Ships its own Agent Skills. Commons Clause: don't resell it.
+- **vectorbt**: fastest way to grid-search signals on intraday bars. Grids find noise: count every combination tried and pass it as `--trials` to `scripts/validate_backtest.py` (Deflated Sharpe). Community edition lacks limit orders and leverage (PRO, paid); treat its fills as market-at-close approximations.
+- **HftBacktest**: only when the edge lives in the book (order-book imbalance, quoting). Models feed and order latency plus queue position from full L2 + trade data; bar data won't do. Python backtests; its live bot (Binance Futures, Bybit) is Rust-only and out of scope.
+
+Day-trading realism checklist (any engine): commission AND spread AND slippage per side; no fills inside the bar you signalled on; minute data has gaps and halts, so report them; account for the open/close auctions; check the US pattern-day-trader rule and broker margin before sizing. For minute-bar equity curves pass `--periods 98280` (252 × 390) to the validator, or resample to daily first.
 
 ## Vibe-Trading SignalEngine contract
 ```python
