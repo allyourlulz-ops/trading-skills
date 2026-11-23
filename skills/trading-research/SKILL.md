@@ -74,4 +74,4 @@ Log each call (date, ticker, rating, conviction, horizon, benchmark). After the 
 - references/onchain-memecoin.md: rug kill filter, wallet-level limits, desk files
 - references/repo-evaluation.md: source repo verdicts and licences
 
-Companion skill: for quant maths (GARCH, VaR, cointegration, Black-Scholes, Kelly) and lecture-by-lecture teaching, install `npx skills add roan-maverick/MIT-trader-skill`. Its execution rules match ours; keep ours when they differ.
+Companion skill: for quant maths (GARCH, VaR, cointegration, Black-Scholes, Kelly) and lecture-by-lecture teaching, install `npx skills add roan-maverick/MIT-trader-skill --skill mit-trader`. Its execution rules match ours; keep ours when they differ.
