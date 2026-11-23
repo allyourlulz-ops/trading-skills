@@ -1,12 +1,12 @@
 ---
 name: trading-research
-description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, Vibe-Trading). Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, size a position, review a portfolio, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
+description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, Vibe-Trading). Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, vet a new on-chain token for rug risk, size a position, review a portfolio, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
 license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.0.0"
-  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills"
+  version: "1.1.0"
+  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders"
 ---
 
 # Trading Research
@@ -24,6 +24,7 @@ Classify the request before doing any expensive work:
 | `sentiment` | "what are people saying", "catalysts this month" | references/sentiment.md |
 | `forecast` | "price path", "Kronos" | references/forecasting.md |
 | `portfolio` | "review my book", "rebalance" | references/committee.md (portfolio section), references/risk-and-execution.md |
+| `onchain` | "new Solana pair", "memecoin", "is this a rug" | references/onchain-memecoin.md, references/risk-and-execution.md |
 | `execute` | "buy", "sell", "place an order", "close" | references/risk-and-execution.md (mandatory) |
 
 If the mode is unclear, ask one question. If a required input is missing (ticker, market, timeframe, budget), ask; never invent it.
@@ -70,4 +71,5 @@ Log each call (date, ticker, rating, conviction, horizon, benchmark). After the 
 - references/risk-and-execution.md: limits, three-gate execution, Alpaca permissions
 - references/sentiment.md: last30days, StockTwits, Polymarket
 - references/forecasting.md: Kronos
+- references/onchain-memecoin.md: rug kill filter, wallet-level limits, desk files
 - references/repo-evaluation.md: source repo verdicts and licences
