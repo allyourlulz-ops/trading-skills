@@ -22,6 +22,7 @@ def main():
     ap.add_argument("--dca-periods", type=int, default=0)
     ap.add_argument("--lookthrough")
     ap.add_argument("--min-trade", type=float, default=25.0)
+    ap.add_argument("--max-single", type=float, default=30.0, help="concentration warning, percent of total in one asset")
     a = ap.parse_args()
     H, T = json.load(open(a.holdings)), json.load(open(a.targets))
     prices = T.pop("prices", {})
@@ -68,11 +69,16 @@ def main():
             elif k != "CASH":
                 expo[k] = expo.get(k, 0) + w[k]
         expo = {k: round(100 * v, 2) for k, v in sorted(expo.items(), key=lambda kv: -kv[1])[:15]}
-    out = dict(total_value=round(total, 2), weights_pct={k: round(100 * w[k], 2) for k in names},
+    conc = [f"{k} is {100 * w[k]:.1f}% of the portfolio (limit {a.max_single:g}%)" for k in names
+            if k != "CASH" and 100 * w[k] > a.max_single]
+    if expo:
+        conc += [f"{k} is {v}% after ETF look-through (limit {a.max_single:g}%)" for k, v in expo.items()
+                 if v > a.max_single and 100 * w.get(k, 0) <= a.max_single]
+    out = dict(concentration_warnings=conc, total_value=round(total, 2), weights_pct={k: round(100 * w[k], 2) for k in names},
                target_pct={k: round(100 * T.get(k, 0), 2) for k in names}, drift_pts=drift, band_pts=a.band,
                trades=trades, dca_plan=plan, lookthrough_exposure_pct=expo,
                notes=["Prefer fixing drift with new money (dca_plan) over selling: fewer taxable events.",
-                      "Each trade still goes through risk_check.py and the user's yes.",
+                      "Each trade still goes through risk_check.py and the user's yes (or an AUTO_OK from a signed mandate).",
                       "Look-through covers only the ETF holdings you supplied (usually the top 10-25)."])
     print(json.dumps(out, indent=2))
 
