@@ -28,6 +28,12 @@ Example pipeline:
  "outputs":["rsi","macd"]}
 ```
 
+## Polars for large bar sets
+Use polars (MIT) instead of pandas for tick or multi-year minute data: lazy scans (`pl.scan_parquet`) and `group_by_dynamic` for resampling. Convert to pandas only at the edge for libraries that need it.
+
+## Solana on-chain reads
+`solders` (Apache-2.0) gives typed Solana primitives for RPC reads: mint and freeze authority on a token mint, holder accounts, LP token supply. Jupiter's quote API gives swap routes and price impact. See references/onchain-memecoin.md for what to check.
+
 ## Alpaca data tools
 `get_stock_snapshot`, `get_stock_bars`, `get_stock_latest_quote`, `get_most_active_stocks`, `get_market_movers`, `get_option_chain`, `get_option_snapshot` (Greeks/IV), `get_crypto_bars`, `get_crypto_latest_orderbook`, `get_news`, `get_corporate_actions`, `get_clock`, `get_calendar`. Real-time SIP data needs Alpaca's paid plan; free data may be IEX-only/delayed. Say which.
 
