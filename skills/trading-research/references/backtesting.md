@@ -77,6 +77,9 @@ Method adapted from roan-maverick/MIT-trader-skill's strategy hunter (MIT code, 
 6. **If nothing is approved, stand down** and say so plainly. On liquid US stocks simple rules usually fail out of sample; that is the screen working.
 Feed survivors into the full backtest + `scripts/validate_backtest.py`, with `--trials` set to the number of variants screened. For the maths behind each step, the companion `mit-trader` skill's lecture notes (CC BY-NC-SA 4.0, not bundled here) map them to 18.S096 lectures.
 
+## Ablation (one rule at a time)
+Build a strategy up from its base signal, adding one filter per run and logging the equity, drawdown and trade count each time. Keep a filter only if it improves out-of-sample results by more than noise; count every run in `--trials`. A filter that only helps in-sample is curve-fitting.
+
 ## Permutation gates (run scripts/permutation_test.py)
 Optimisation always finds something, even in noise. These gates ask whether the optimised result beats the same optimisation run on shuffled price paths (same start, end and bar-return distribution, every real pattern destroyed). Pull closes through the data MCP server (OpenBB `equity_price_historical`, Alpaca stock/crypto bars, CCXT), save `date,close` to CSV, then run locally. No outside platform is needed.
 - **Measure every bar.** Position is 1, -1 or 0 on each bar; score bar returns (profit factor), not per-trade results.
