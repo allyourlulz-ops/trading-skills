@@ -2,6 +2,7 @@
 """Allocation drift, rebalance trades, DCA plan and ETF look-through exposure. Stdlib only.
 Usage: rebalance.py --holdings h.json --targets t.json [--band 5] [--cash 0] [--dca 500 --dca-periods 4]
                     [--lookthrough etf.json] [--min-trade 25]
+                    [--base CAD --fx USD=1.38]  (holdings may carry "currency"; mixed currencies need rates)
 h.json: {"VOO":{"qty":10,"price":540},"AAPL":{"qty":20,"price":190},"CASH":{"value":800}}
 t.json: {"VOO":0.6,"AAPL":0.1,"BND":0.25,"CASH":0.05}   (weights sum to 1; prices for new names via "prices")
 etf.json: {"VOO":{"AAPL":0.07,"MSFT":0.065,"NVDA":0.07}}  top holdings by weight, from the data MCP server
@@ -22,6 +23,8 @@ def main():
     ap.add_argument("--dca-periods", type=int, default=0)
     ap.add_argument("--lookthrough")
     ap.add_argument("--min-trade", type=float, default=25.0)
+    ap.add_argument("--base", default=None, help="reporting currency, e.g. CAD; needed when holdings carry a currency")
+    ap.add_argument("--fx", action="append", default=[], help="rate into the base currency, e.g. --fx USD=1.38 (repeat)")
     ap.add_argument("--max-single", type=float, default=30.0, help="concentration warning, percent of total in one asset")
     a = ap.parse_args()
     H, T = json.load(open(a.holdings)), json.load(open(a.targets))
@@ -29,12 +32,25 @@ def main():
     if abs(sum(T.values()) - 1) > 1e-6:
         raise SystemExit(f"target weights sum to {sum(T.values()):.4f}, not 1")
     val = {k: (v["value"] if "value" in v else v["qty"] * v["price"]) for k, v in H.items()}
+    curs = {k: v.get("currency", a.base) for k, v in H.items()}
+    if len({c for c in curs.values() if c}) > 1 or (a.base and any(c and c != a.base for c in curs.values())):
+        if not a.base:
+            raise SystemExit("holdings are in more than one currency: pass --base and an --fx rate for each other currency")
+        fx = {x.split("=")[0].upper(): float(x.split("=")[1]) for x in a.fx}
+        fx[a.base.upper()] = 1.0
+        miss = sorted({c for c in curs.values() if c and c.upper() not in fx})
+        if miss:
+            raise SystemExit("no --fx rate for " + ", ".join(miss) + "; never add amounts across currencies")
+        val = {k: v * fx[(curs[k] or a.base).upper()] for k, v in val.items()}
+        prices_fx = {k: fx[(curs[k] or a.base).upper()] for k in H}
+    else:
+        prices_fx = {k: 1.0 for k in H}
     val["CASH"] = val.get("CASH", 0) + a.cash
     total = sum(val.values())
     names = sorted(set(val) | set(T))
     w = {k: val.get(k, 0) / total for k in names}
     drift = {k: round(100 * (w[k] - T.get(k, 0)), 2) for k in names}
-    px = {k: H[k]["price"] for k in H if "price" in H[k]} | prices
+    px = {k: H[k]["price"] * prices_fx[k] for k in H if "price" in H[k]} | prices
     trades = []
     for k in names:
         if k == "CASH" or abs(drift[k]) < a.band:
@@ -42,7 +58,7 @@ def main():
         usd = (T.get(k, 0) - w[k]) * total
         if abs(usd) < a.min_trade:
             continue
-        t = dict(symbol=k, side="buy" if usd > 0 else "sell", usd=round(abs(usd), 2))
+        t = dict(symbol=k, side="buy" if usd > 0 else "sell", amount=round(abs(usd), 2), currency=a.base or "USD")
         if k in px:
             t["qty"] = int(abs(usd) // px[k]) if px[k] else None
         trades.append(t)
@@ -74,7 +90,7 @@ def main():
     if expo:
         conc += [f"{k} is {v}% after ETF look-through (limit {a.max_single:g}%)" for k, v in expo.items()
                  if v > a.max_single and 100 * w.get(k, 0) <= a.max_single]
-    out = dict(concentration_warnings=conc, total_value=round(total, 2), weights_pct={k: round(100 * w[k], 2) for k in names},
+    out = dict(base_currency=a.base, fx_used=a.fx, concentration_warnings=conc, total_value=round(total, 2), weights_pct={k: round(100 * w[k], 2) for k in names},
                target_pct={k: round(100 * T.get(k, 0), 2) for k in names}, drift_pts=drift, band_pts=a.band,
                trades=trades, dca_plan=plan, lookthrough_exposure_pct=expo,
                notes=["Prefer fixing drift with new money (dca_plan) over selling: fewer taxable events.",
