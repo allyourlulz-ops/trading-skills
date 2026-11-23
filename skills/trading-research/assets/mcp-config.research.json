@@ -1,0 +1,8 @@
+{"mcpServers": {
+  "openbb": {"command": "uvx", "args": ["--from","openbb-mcp-server","--with","openbb","openbb-mcp","--transport","stdio","--tool-discovery"]},
+  "alpaca": {"command": "uvx", "args": ["alpaca-mcp-server"],
+    "env": {"ALPACA_API_KEY": "${ALPACA_API_KEY}", "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
+            "ALPACA_PAPER_TRADE": "true",
+            "ALPACA_TOOLSETS": "account,assets,stock-data,crypto-data,options-data,news,corporate-actions"}},
+  "vibe-trading": {"command": "vibe-trading-mcp"}
+}}
