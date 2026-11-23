@@ -4,5 +4,7 @@ This skill adapts ideas and condensed prompt wording from:
   alpacahq/alpaca-mcp-server, ZhuLinsen/daily_stock_analysis, LosaLosSantos/aurelio-finance,
   mvanhorn/last30days-skill, shiyu-coder/Kronos, janestreet/agent_skills (MIT)
 - OpenBB, OpenByteInc/QuantDinger, goldmansachs/gs-quant, zipline-reloaded (Apache-2.0)
+- polars (MIT); pyfolio-reloaded, solders (Apache-2.0); backtesting.py (AGPL-3.0, referenced as a dependency only)
+- @DN_degen, "I Was Asleep. My AI Desk Wasn't" (X article, 2026-11-15): kill-filter and desk structure, paraphrased
 - freqtrade (GPL-3.0): referenced via its CLI only; no freqtrade code is included.
 No code from these projects is copied except short illustrative API examples.
