@@ -33,6 +33,11 @@ Execute mode adds `trading` to `ALPACA_TOOLSETS`; keep `ALPACA_PAPER_TRADE=true`
 - v1 tools do not exist in v2; pin `alpaca-mcp-server==1.x.x` only for legacy scripts.
 - No server-side confirmation and no MCP OAuth: bind to localhost, never expose publicly. Approval relies on client permissions (references/risk-and-execution.md).
 
+## Canadian brokers and data (see canada.md)
+- Questrade (official, hosted, orders need Push Approval in the Questrade app): `claude mcp add --transport http questrade https://mcp.questrade.com/v1/brokerage/mcp`
+- Interactive Brokers (official AI connector; drafts instructions the user submits): add it from the client's connector marketplace.
+- TSX/TSXV data: `pip install openbb-tmx` alongside the OpenBB MCP server (no key).
+
 ## SEC EDGAR MCP (filings, XBRL financials, insider Forms 3/4/5)
 `stefanoamorelli/sec-edgar-mcp`, AGPL-3.0: run it as a separate server; nothing from it is bundled here.
 ```json
