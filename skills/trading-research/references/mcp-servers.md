@@ -33,6 +33,19 @@ Execute mode adds `trading` to `ALPACA_TOOLSETS`; keep `ALPACA_PAPER_TRADE=true`
 - v1 tools do not exist in v2; pin `alpaca-mcp-server==1.x.x` only for legacy scripts.
 - No server-side confirmation and no MCP OAuth: bind to localhost, never expose publicly. Approval relies on client permissions (references/risk-and-execution.md).
 
+## SEC EDGAR MCP (filings, XBRL financials, insider Forms 3/4/5)
+`stefanoamorelli/sec-edgar-mcp`, AGPL-3.0: run it as a separate server; nothing from it is bundled here.
+```json
+{"mcpServers":{"sec-edgar-mcp":{"command":"docker","args":["run","-i","--rm","-e","SEC_EDGAR_USER_AGENT=Your Name (you@example.com)","stefanoamorelli/sec-edgar-mcp:latest"]}}}
+```
+pip/uv installs are in its docs. Read-only.
+
+## Prediction Markets MCP (Polymarket, Kalshi, PredictIt; read-only)
+`JamesANZ/prediction-market-mcp`, MIT. Tools: `get-prediction-markets`, `gather-market-movement-evidence`.
+```json
+{"mcpServers":{"prediction-markets":{"command":"npx","args":["-y","prediction-markets-mcp"]}}}
+```
+
 ## Vibe-Trading (backtests, factor zoo, 89 skills)
 ```bash
 pip install vibe-trading-ai && vibe-trading init
