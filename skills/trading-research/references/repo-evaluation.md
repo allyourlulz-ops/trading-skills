@@ -75,3 +75,10 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | hft.md/crash/llms.txt | none stated | 4 | crash_guard.py rules, stress data sources | Clear formulas with worked numbers and stated failure modes; reimplemented, not copied |
 | stefanoamorelli/sec-edgar-mcp | AGPL-3.0 | 4 | Filings MCP server (external) | Docker config; returns SEC URLs |
 | JamesANZ/prediction-market-mcp | MIT | 3 | Prediction-market data MCP (external) | Read-only; movement evidence tool |
+
+## finance-expert skill (SKILL.md text, reviewed 2026-11-23)
+| Source | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| finance-expert (money-systems skill; author and repo not given) | unknown | 4 | Money invariants for the bot ledger | Strong on ledgers, idempotency, reconciliation and labelling. Its harnesses (audit_ledger.py, money_lint.py) were not provided, so nothing was copied. Its "automation never approves" rule (M11) is why mandates are signed by the user, capped and expiring |
+| Questrade MCP (official) | proprietary hosted | 4 | Canadian broker data and orders | Every change needs Push Approval on the user's phone |
+| openbb-tmx | OpenBB (AGPL-3.0 platform) | 4 | TSX/TSXV data | Unofficial TMX connector, no key |
