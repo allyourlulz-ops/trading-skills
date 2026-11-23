@@ -67,6 +67,16 @@ CLI needs `--no-benchmark` or `--benchmark-symbol`. The Quandl WIKI bundle ends 
 ## Hard gates (Vibe-Trading backtest-diagnose)
 Fail and fix if any is true: run exited non-zero; metrics or equity file missing; NaN in equity; **zero trades**; first trade >2 years after start; average capital use <50% when the strategy should be invested; position still open at the end unreported; excess return implausible (check the benchmark series and look-ahead). Ignore provider rate-limit errors (retry, don't rewrite code). **Max 3 repair iterations**, then report.
 
+## Screening many rules at once (run scripts/rule_screen.py)
+Method adapted from roan-maverick/MIT-trader-skill's strategy hunter (MIT code, built on MIT OCW 18.S096). Use it before backtesting any single rule in depth, whenever you are choosing among variants (dip depths, lookbacks, holding periods).
+1. **Pooled event study.** For every symbol and every day a rule fires (entries at least one holding period apart), record the h-day return in the trade's direction minus that symbol's ordinary h-day return minus round-trip costs (default 10 bps a side). That is the rule's excess per trade, not its raw return.
+2. **Cluster by week.** A market selloff fires a dip rule on 40 stocks at once: one bet, not 40. Average excess per entry week and take the t-stat over weeks.
+3. **Split by date.** First 70% of history is in-sample; the last 30% plays no part in discovery.
+4. **Control false discoveries.** Benjamini-Hochberg at 10% on the in-sample one-sided p-values across EVERY variant tried; report the Bonferroni bar too. Each new variant raises the bar for all of them.
+5. **Approve** only a BH discovery with ≥30 in-sample trades AND ≥10 out-of-sample trades with positive excess and t ≥ 1. A discovery that dies out of sample is FAILED_OOS, the classic overfit.
+6. **If nothing is approved, stand down** and say so plainly. On liquid US stocks simple rules usually fail out of sample; that is the screen working.
+Feed survivors into the full backtest + `scripts/validate_backtest.py`, with `--trials` set to the number of variants screened. For the maths behind each step, the companion `mit-trader` skill's lecture notes (CC BY-NC-SA 4.0, not bundled here) map them to 18.S096 lectures.
+
 ## Validation (run scripts/validate_backtest.py)
 Report all of:
 - CAGR, Sharpe, Sortino, max drawdown + duration, win rate, profit factor, expectancy, trade count.
