@@ -14,7 +14,22 @@ per-name cap → net cap → sector cap → beta cap → volatility cap → draw
 1. `scripts/risk_check.py` returns PASS for this exact order (RESIZE means set qty to `allowed_qty`, add `base_qty` with the original size, and check again) (fingerprint: symbol, side, qty, type, limit, stop).
 2. The user types an explicit yes in the conversation that names the ticker and size. Reject "sure", "yes to all", or a yes for a different ticker/amount. Never batch.
 3. The client's own allow-once permission card for the order tool.
-Exits and stop-reductions are never blocked by daily limits. No orders from scheduled/background runs. Never ask for API keys in chat; never switch paper→live; never call bulk tools on your own.
+Exits and stop-reductions are never blocked by daily limits. No orders from scheduled/background runs unless a signed mandate returns AUTO_OK (below). Never ask for API keys in chat; never switch paper→live; never call bulk tools on your own.
+
+## Mandate mode: bots that trade on a standing okay
+The user signs one mandate instead of saying yes to every order. `scripts/mandate.py check` replaces gate 2 for orders inside it; gate 1 (risk_check PASS for the exact order, matched by fingerprint) never goes away.
+
+**Signing.** Copy assets/mandate.example.json to assets/mandate.json and fill it with the user, field by field: strategies (only ones that passed the permutation gates and 20+ paper sessions), symbols, asset classes, per-order and daily notional caps, orders per day, open positions, daily loss, total loss, losing-streak stop, and an expiry of at most 30 days. Mode starts as `paper`. `live` needs `live_ack` set to the exact sentence the script names, typed by the user, and a live account they switched to themselves. The agent never edits a mandate to widen it; widening is a new mandate the user signs.
+
+**Bot loop (one order at a time):** data via MCP → strategy signal → order JSON with `strategy`, limit price and stop → `risk_check.py` (with `--context`) → `mandate.py check` →
+- AUTO_OK: place it as a bracket/limit order with the stop attached, `mandate.py record` it, then notify the user with the fill, the reason and the day's P&L.
+- NEEDS_YES: ask for the normal explicit per-order yes, with the reasons.
+- HALT: place nothing new. The script writes a HALT file; tell the user why. Only the user deletes it.
+After each close, `record --pnl` so the loss limits and streak stop see it. `status` gives the day's summary; a daily recap goes out at the close.
+
+**Kill switch:** the user says stop, or `mandate.py halt --reason ...`, or `"revoked": true`. Also cancel open agent orders (not resting stops) and revoke the trade token.
+
+**Client permissions for mandate runs:** allow `place_stock_order` (and `close_position`) only in the session or profile that runs the bot; keep `close_all_positions`, `cancel_all_orders`, options and crypto tools denied unless the mandate lists that asset class.
 
 ## Alpaca client permissions
 - Always allow: read-only data/account tools.
