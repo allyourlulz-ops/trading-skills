@@ -1,11 +1,11 @@
 ---
 name: trading-research
-description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, Vibe-Trading). Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, vet a new on-chain token for rug risk, size a position, review a portfolio, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
+description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, SEC EDGAR, prediction markets, Vibe-Trading). Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, vet a new on-chain token for rug risk, size a position, review or crash-proof a portfolio, rebalance, watch filings and insider buys, price an options spread, size a prediction-market bet, keep a trade journal or forecast scorecard, write a market brief, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
 license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.6.0"
+  version: "1.7.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill"
 ---
 
@@ -59,11 +59,14 @@ Unparseable or contradictory output becomes `REVIEW`, never a silent Hold. "Conf
 - **backtest:** choosing among many variants? screen them first with `scripts/rule_screen.py` (week-clustered t, 70/30 date split, Benjamini-Hochberg). Then write the strategy contract, run, pass the hard gates in references/backtesting.md, then the permutation gates with `scripts/permutation_test.py` (in-sample and walk-forward, plus a plateau check), then `scripts/validate_backtest.py` (bootstrap Sharpe CI, t-test p-value, Deflated Sharpe, buy-and-hold delta). Max 3 repair iterations.
 - **execute:** three gates, one order at a time: `scripts/risk_check.py` PASS for this exact order (with `--context` for earnings blackout and market-stress gates) → user types an explicit yes naming ticker, side and size → client's allow-once permission. See references/risk-and-execution.md.
 
+- **portfolio:** `scripts/crash_guard.py` (vol target, drawdown brake, trend filter, risk shares, stress test), `scripts/rebalance.py` (drift, DCA, ETF look-through), `scripts/journal_stats.py` (trade journal and rule breaks). See references/portfolio-and-routines.md.
+- **filings / options / prediction markets / briefs:** references/filings-and-flows.md, references/options.md (`scripts/options_payoff.py`), references/prediction-markets.md (`scripts/kelly.py`), daily routines in references/portfolio-and-routines.md. All research-only by default.
+
 ## 4. Learning loop
-Log each call (date, ticker, rating, conviction, horizon, benchmark). After the horizon, settle against the regional benchmark (`.TO`→`^GSPTSE`, `.L`→`^FTSE`, `.HK`→`^HSI`, `.T`→`^N225`, default `SPY`), write a one-paragraph lesson, and feed recent lessons into the next portfolio-manager prompt.
+Log each call with `scripts/scorekeeper.py log` (date, ticker, rating, conviction, confidence, horizon, source). After the horizon, `grade` it against the regional benchmark (`.TO`→`^GSPTSE`, `.L`→`^FTSE`, `.HK`→`^HSI`, `.T`→`^N225`, default `SPY`), then `report`: hit rate, Brier score, calibration by confidence and reliability per source. Write a one-paragraph lesson for each worst miss and feed recent lessons into the next portfolio-manager prompt.
 
 ## 5. Reference index
-- references/mcp-servers.md: install/config for OpenBB, Alpaca, Vibe-Trading, QuantDinger, daily_stock_analysis, tick-stock-panel MCP servers
+- references/mcp-servers.md: install/config for OpenBB, Alpaca, SEC EDGAR, Prediction Markets, Vibe-Trading, QuantDinger, daily_stock_analysis, tick-stock-panel MCP servers
 - references/data-layer.md: OpenBB routes, Alpaca data tools, data traps
 - references/committee.md: role prompts, personas, blind mode, portfolio context
 - references/strategies.md: YAML strategy format and built-in setups
@@ -72,6 +75,10 @@ Log each call (date, ticker, rating, conviction, horizon, benchmark). After the 
 - references/sentiment.md: last30days, StockTwits, Polymarket
 - references/forecasting.md: Kronos
 - references/onchain-memecoin.md: rug kill filter, wallet-level limits, desk files
+- references/filings-and-flows.md: SEC filings, Form 4, 13F, short interest, nightly watchlist
+- references/options.md: defined-risk playbooks, payoff tool, event filters
+- references/prediction-markets.md: decode the price, Kelly sizing, grading
+- references/portfolio-and-routines.md: crash guard, rebalancing, journal, scorecard, daily briefs
 - references/repo-evaluation.md: source repo verdicts and licences
 
 Companion skill: for quant maths (GARCH, VaR, cointegration, Black-Scholes, Kelly) and lecture-by-lecture teaching, install `npx skills add roan-maverick/MIT-trader-skill --skill mit-trader`. Its execution rules match ours; keep ours when they differ.
