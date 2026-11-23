@@ -20,6 +20,8 @@ uvx --from openbb-mcp-server --with openbb openbb-mcp --transport stdio --tool-d
 - Lock down `install_skill` (it writes to server disk); use `server_auth` if clients are untrusted.
 - Note: GitHub currently serves `OpenBB-finance/OpenBB` as `openbq-org/OpenBB`. Install from PyPI (`openbb`), not from a fork.
 
+All setup commands in this file are for the user to run after reading them. The agent shows them; it does not run them, and it never pastes keys into chat or files. Prefer project scope over user/global scope.
+
 ## Alpaca MCP v2 (US stocks/options/crypto data + paper/live execution)
 Research-only (no order tools exist):
 ```json
@@ -28,7 +30,7 @@ Research-only (no order tools exist):
         "ALPACA_TOOLSETS":"account,assets,stock-data,crypto-data,options-data,news,corporate-actions"}}}}
 ```
 Execute mode adds `trading` to `ALPACA_TOOLSETS`; keep `ALPACA_PAPER_TRADE=true` unless the user switches it themselves.
-- Claude Code: `claude mcp add alpaca --scope user --transport stdio uvx alpaca-mcp-server --env ALPACA_API_KEY=… --env ALPACA_SECRET_KEY=…`
+- Claude Code: `claude mcp add alpaca --scope project --transport stdio uvx alpaca-mcp-server --env ALPACA_API_KEY=… --env ALPACA_SECRET_KEY=…`
 - Toolsets: account, trading, watchlists, assets, stock-data, crypto-data, options-data, corporate-actions, news, fixed-income-data, locates.
 - v1 tools do not exist in v2; pin `alpaca-mcp-server==1.x.x` only for legacy scripts.
 - No server-side confirmation and no MCP OAuth: bind to localhost, never expose publicly. Approval relies on client permissions (references/risk-and-execution.md).
@@ -53,7 +55,7 @@ pip/uv installs are in its docs. Read-only.
 
 ## Vibe-Trading (backtests, factor zoo, 89 skills)
 ```bash
-pip install vibe-trading-ai && vibe-trading init
+pip install vibe-trading-ai && vibe-trading init   # run by the user, not the agent
 ```
 ```json
 {"mcpServers":{"vibe-trading":{"command":"vibe-trading-mcp"}}}
