@@ -8,6 +8,13 @@ Commands
   mandate.py record --order order.json --ledger l.jsonl [--pnl -12.5] [--fill-price 190.1]
   mandate.py status [--mandate m.json] [--ledger l.jsonl]
   mandate.py halt   --reason "..."        (writes the HALT file next to the mandate; any run stops)
+  mandate.py reconcile --broker fills.json [--ledger l.jsonl] [--tol 0.01]
+             fills.json: the broker's own orders/fills for the period (e.g. Alpaca get_orders), list of
+             {"client_order_id","symbol","side","filled_qty","filled_avg_price"}. Any break HALTs.
+
+Every order needs a client_order_id (derive it from the business action, e.g. strategy+symbol+signal
+bar). Send the same id to the broker so a retry can never fill twice. The ledger is append-only: fix a
+wrong row by recording a new row with "reverses": <client_order_id>, never by editing the file.
 
 check verdicts
   AUTO_OK    place it now, no yes needed; then record it and notify the user (fill, P&L, reason)
@@ -88,6 +95,11 @@ def check(a):
         halt.append("%d losses in a row" % streak)
 
     is_exit = bool(o.get("is_exit"))
+    coid = o.get("client_order_id")
+    if not coid:
+        need.append("order has no client_order_id (needed so retries cannot fill twice)")
+    elif any(r.get("client_order_id") == coid and not r.get("reverses") for r in L):
+        need.append("client_order_id %s already in the ledger: this is a retry or a duplicate" % coid)
     if rk.get("verdict") != "PASS":
         need.append("risk_check verdict is %s, not PASS" % rk.get("verdict"))
     if rk.get("fingerprint") and "fingerprint" in rk:
@@ -141,11 +153,15 @@ def record(a):
     M = json.load(open(a.mandate)) if os.path.exists(a.mandate) else {}
     px = a.fill_price or o.get("limit_price") or 0
     row = dict(ts=a.now or datetime.now().isoformat(timespec="seconds"), mandate_id=M.get("id"),
+               client_order_id=o.get("client_order_id"),
                symbol=o.get("symbol"), side=o.get("side"), qty=o.get("qty"), price=px,
                notional=round(float(px) * float(o.get("qty", 0)), 2), is_exit=bool(o.get("is_exit")),
                strategy=o.get("strategy"))
     if a.pnl is not None:
         row["pnl"] = a.pnl
+    if a.reverses:
+        row["reverses"] = a.reverses
+        row["notional"] = -row["notional"]
     with open(a.ledger, "a") as f:
         f.write(json.dumps(row) + "\n")
     print(json.dumps(row))
@@ -163,6 +179,38 @@ def status(a):
                      indent=2))
 
 
+def reconcile(a):
+    L = load_ledger(a.ledger)
+    B = json.load(open(a.broker))
+    B = B.get("orders", B) if isinstance(B, dict) else B
+    rev = {r["reverses"] for r in L if r.get("reverses")}
+    mine = {r["client_order_id"]: r for r in L if r.get("client_order_id") and not r.get("reverses")
+            and r["client_order_id"] not in rev}
+    theirs = {b.get("client_order_id"): b for b in B if float(b.get("filled_qty") or 0) > 0}
+    breaks = []
+    for k, b in theirs.items():
+        if k not in mine:
+            breaks.append(dict(type="fill_not_in_ledger", client_order_id=k, symbol=b.get("symbol"),
+                               why="an order filled that the mandate never recorded (manual trade, retry, or a bug)"))
+            continue
+        r = mine[k]
+        if abs(float(b["filled_qty"]) - float(r["qty"])) > 1e-9:
+            breaks.append(dict(type="qty_mismatch", client_order_id=k, ledger=r["qty"], broker=b["filled_qty"]))
+        bp = float(b.get("filled_avg_price") or 0)
+        if bp and r.get("price") and abs(bp - float(r["price"])) / bp > a.tol:
+            breaks.append(dict(type="price_mismatch", client_order_id=k, ledger=r["price"], broker=bp))
+    for k, r in mine.items():
+        if k not in theirs:
+            breaks.append(dict(type="ledger_not_filled", client_order_id=k, symbol=r["symbol"],
+                               why="recorded but the broker shows no fill; record a reversing row if it never filled"))
+    if breaks:
+        with open(halt_file(a.mandate), "w") as f:
+            f.write("%s reconcile: %d breaks" % (datetime.now().isoformat(timespec="minutes"), len(breaks)))
+    print(json.dumps(dict(verdict="BREAKS" if breaks else "MATCHED", matched=len(set(mine) & set(theirs)),
+                          breaks=breaks), indent=2))
+    sys.exit(2 if breaks else 0)
+
+
 def halt(a):
     with open(halt_file(a.mandate), "w") as f:
         f.write("%s %s" % (datetime.now().isoformat(timespec="minutes"), a.reason))
@@ -173,7 +221,7 @@ if __name__ == "__main__":
     sys.path.insert(0, HERE)
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("check", "record", "status", "halt"):
+    for name in ("check", "record", "status", "halt", "reconcile"):
         p = sp.add_parser(name)
         p.add_argument("--mandate", default=DEFAULT_M)
         p.add_argument("--ledger", default=os.path.join(HERE, "..", "assets", "mandate-ledger.jsonl"))
@@ -185,7 +233,11 @@ if __name__ == "__main__":
         if name == "record":
             p.add_argument("--pnl", type=float)
             p.add_argument("--fill-price", type=float)
+            p.add_argument("--reverses", help="client_order_id of the row this one cancels out")
+        if name == "reconcile":
+            p.add_argument("--broker", required=True)
+            p.add_argument("--tol", type=float, default=0.01, help="price tolerance as a fraction")
         if name == "halt":
             p.add_argument("--reason", required=True)
     a = ap.parse_args()
-    {"check": check, "record": record, "status": status, "halt": halt}[a.cmd](a)
+    {"check": check, "record": record, "status": status, "halt": halt, "reconcile": reconcile}[a.cmd](a)
