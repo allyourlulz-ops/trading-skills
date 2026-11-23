@@ -4,4 +4,10 @@
  "require_stop": true, "no_entries_before": "09:45", "no_entries_after": "15:30",
  "flat_by": "15:55", "timezone": "America/New_York", "max_adv_pct": 5,
  "paper": true, "allow_options": false, "allow_margin": false, "allow_short": false,
- "blocked": []}
+ "blocked": [],
+ "timing": {"earnings_blackout_days": 14, "earnings_blackout_action": "block",
+            "post_earnings_window_days": 7, "post_earnings_spike_pct": 15, "spike_multiplier": 0.7,
+            "overbought_rsi": 70, "near_high_pct": 5, "overbought_multiplier": 0.8,
+            "high_vix": 30, "high_vix_multiplier": 0.7,
+            "risk_off_5d_pct": {"GLD": 2.0, "TLT": 1.0, "UUP": 1.0}, "risk_off_multiplier": 0.7,
+            "min_size_multiplier": 0.25}}
