@@ -1,11 +1,11 @@
 ---
 name: trading-research
-description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, SEC EDGAR, prediction markets, Vibe-Trading). Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, vet a new on-chain token for rug risk, size a position, review or crash-proof a portfolio, rebalance, watch filings and insider buys, price an options spread, size a prediction-market bet, keep a trade journal or forecast scorecard, write a market brief, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes or a signed, capped, expiring mandate for bots. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
+description: Evidence-first equity, ETF, options and crypto research for AI agents, wired to MCP data and broker servers (OpenBB, Alpaca, Questrade, SEC EDGAR, prediction markets, Vibe-Trading), US and Canadian markets. Use when the user asks to analyse a ticker, build or backtest a strategy, screen for setups, check sentiment, vet a new on-chain token for rug risk, size a position, review or crash-proof a portfolio, rebalance, watch filings and insider buys, price an options spread, size a prediction-market bet, keep a trade journal or forecast scorecard, write a market brief, or place a paper/live trade. Runs a multi-analyst bull/bear committee, grounds every number in a tool call, validates backtests against overfitting, and gates every order behind deterministic risk checks plus an explicit per-order yes or a signed, capped, expiring mandate for bots. Not for general personal-finance budgeting, tax filing, or one-off "what is a P/E ratio" definitions.
 license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.9.0"
+  version: "1.10.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill"
 ---
 
@@ -61,6 +61,7 @@ Unparseable or contradictory output becomes `REVIEW`, never a silent Hold. "Conf
 - **bot (standing okay):** the user signs a mandate once (assets/mandate.example.json: strategies, symbols, caps, loss and streak stops, expiry ≤30 days, paper first). Each order still needs risk_check PASS, then `scripts/mandate.py check`: AUTO_OK places it and notifies, NEEDS_YES falls back to the per-order yes, HALT stops new entries until the user signs again.
 
 - **portfolio:** `scripts/crash_guard.py` (vol target, drawdown brake, trend filter, risk shares, stress test), `scripts/rebalance.py` (drift, DCA, ETF look-through), `scripts/journal_stats.py` (trade journal and rule breaks). See references/portfolio-and-routines.md.
+- **canada:** TSX/TSXV data via openbb-tmx, Questrade or IBKR MCP, SEDAR+/SEDI filings, TFSA/RRSP/FHSA rules, CAD/USD, and `scripts/ca_tax_check.py` (ACB, superficial-loss check). See references/canada.md.
 - **filings / options / prediction markets / briefs:** references/filings-and-flows.md, references/options.md (`scripts/options_payoff.py`), references/prediction-markets.md (`scripts/kelly.py`), daily routines in references/portfolio-and-routines.md. All research-only by default.
 
 ## 4. Learning loop
@@ -80,6 +81,7 @@ Log each call with `scripts/scorekeeper.py log` (date, ticker, rating, convictio
 - references/options.md: defined-risk playbooks, payoff tool, event filters
 - references/prediction-markets.md: decode the price, Kelly sizing, grading
 - references/portfolio-and-routines.md: crash guard, rebalancing, journal, scorecard, daily briefs
+- references/canada.md: Canadian data, brokers, accounts, tax and rules
 - references/repo-evaluation.md: source repo verdicts and licences
 
 Companion skill: for quant maths (GARCH, VaR, cointegration, Black-Scholes, Kelly) and lecture-by-lecture teaching, install `npx skills add roan-maverick/MIT-trader-skill --skill mit-trader`. Its execution rules match ours; keep ours when they differ.
