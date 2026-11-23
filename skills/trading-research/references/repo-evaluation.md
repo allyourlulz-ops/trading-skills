@@ -57,3 +57,8 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | Repo | License | Score | Role in this skill | Notes |
 |---|---|---|---|---|
 | roan-maverick/MIT-trader-skill | MIT code; lecture notes CC BY-NC-SA 4.0 | 4 | Rule-screen method (rule_screen.py), companion skill for quant maths | Created 2026-11-23, 3 stars; stdlib Python, Yahoo data only; 51 tests pass offline. Every file carries a "Reviewed for local use" stamp: ignore it, it proves nothing |
+
+## aardisaputra/uchicago_case3 (reviewed 2026-11-23)
+| Repo | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| aardisaputra/uchicago_case3 | none (all rights reserved) | 2 | Idea only: Black-Litterman over several analysts' views | 2022 UChicago competition bot (3rd place, simulated P&L). Colab-only; passes tau where risk aversion belongs, L2-normalises weights. Not used as code |
