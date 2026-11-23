@@ -10,7 +10,7 @@ context.json (optional, from the data MCP server; enables the event-timing gates
              "return_since_last_earnings_pct":4.1,"rsi14":66,"pct_below_52w_high":3.0,"vix":18.5,
              "safe_haven_5d_pct":{"GLD":0.4,"TLT":-0.2,"UUP":0.1}}
 Times are interpreted in the limits' timezone (default America/New_York).
-A size_multiplier below 1 means: re-run position_size.py and cut qty by that factor, then check again."""
+RESIZE means: set qty to allowed_qty, add "base_qty" (the original size) to the order, run again."""
 import argparse, hashlib, json, os, sys
 from datetime import datetime
 try:
@@ -124,10 +124,16 @@ def main():
     else:
         mult = 1.0
         warns.append("exit order: daily limits do not block exits")
-    res = {"verdict": "BLOCK" if blocks else ("RESIZE" if mult < 1 else "PASS"), "fingerprint": fingerprint(o), "symbol": sym,
+    import math as _m
+    base = o.get("base_qty", o["qty"])  # qty position_size.py gave before any cut
+    allowed = _m.floor(base * mult) if mult < 1 else base
+    if mult < 1 and allowed < 1:
+        blocks.append(f"size multiplier {round(mult, 2)} leaves less than 1 unit")
+    resize = mult < 1 and o["qty"] > allowed
+    res = {"verdict": "BLOCK" if blocks else ("RESIZE" if resize else "PASS"), "allowed_qty": allowed, "fingerprint": fingerprint(o), "symbol": sym,
            "checked_at": now.isoformat(), "blocks": blocks, "warnings": warns, "size_multiplier": round(mult, 2),
            "next": ("Do not place this order." if blocks else
-                     f"Cut qty to floor({o['qty']} x {round(mult, 2)}) and run risk_check again." if mult < 1 else
+                     f"Set qty to {allowed}, keep base_qty {base} in the order, and run risk_check again." if resize else
                      "Ask the user for an explicit yes naming this ticker, side and quantity.")}
     print(json.dumps(res, indent=2)); sys.exit(0 if not blocks else 2)
 
