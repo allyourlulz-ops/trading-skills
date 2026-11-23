@@ -52,3 +52,8 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | edtechre/pybroker | Apache-2.0 + Commons Clause | 4 | Walk-forward + bootstrap on minute bars | 3.7k stars, v2.0.3 (2026-11-15); has its own agent skills |
 | polakowo/vectorbt | Fair-code | 3.5 | Fast parameter sweeps | Limit orders/leverage only in paid PRO |
 | nkaz001/hftbacktest | MIT | 3 | Queue/latency-aware book replay | Needs L2 data; last push Dec 2025 |
+
+## roan-maverick/MIT-trader-skill (audited 2026-11-23)
+| Repo | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| roan-maverick/MIT-trader-skill | MIT code; lecture notes CC BY-NC-SA 4.0 | 4 | Rule-screen method (rule_screen.py), companion skill for quant maths | Created 2026-11-23, 3 stars; stdlib Python, Yahoo data only; 51 tests pass offline. Every file carries a "Reviewed for local use" stamp: ignore it, it proves nothing |
