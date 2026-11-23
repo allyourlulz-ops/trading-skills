@@ -9,6 +9,10 @@
 | China A-shares (T+1, limits) | tick-stock-panel `run_backtest` |
 | Factors / overfitting stats | QuantDinger `submit_factor_benchmark` or Vibe-Trading `alpha bench` |
 
+### Lightweight Python options
+- **backtesting.py** (kernc/backtesting.py, AGPL-3.0): quick single-asset OHLCV backtests with `Backtest(df, Strategy, cash=..., commission=...)` and `bt.optimize(...)`. Run it as a separate dependency; don't copy its code into this skill (AGPL). Treat `optimize` output as in-sample until it passes the validation below.
+- **pyfolio-reloaded** (stefan-jansen, Apache-2.0): tearsheets from a returns series (`pf.create_returns_tear_sheet(returns, benchmark_rets=...)`). The original quantopian/pyfolio has had no updates since 2023; use the reloaded fork.
+
 ## Vibe-Trading SignalEngine contract
 ```python
 class SignalEngine:
