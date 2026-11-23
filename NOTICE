@@ -14,5 +14,7 @@ This skill adapts ideas and condensed prompt wording from:
 - Crash-protection rules in scripts/crash_guard.py: original code following hft.md/crash (vol targeting, drawdown brake, trend filter, risk contribution, stress test; S&P 500 crash levels as published there)
 - Capability list for v1.7 (scorecard, filings watch, options, prediction markets, rebalancing, journals, briefs): ideas from the hft.md Grok Bot directory and cs68614-hash/awesome-grokbot-templates (CC0); no bot prompts were available or used
 - MCP servers referenced, not bundled: stefanoamorelli/sec-edgar-mcp (AGPL-3.0), JamesANZ/prediction-market-mcp (MIT)
+- Money-hygiene rules (client_order_id dedupe, append-only reversals, broker reconciliation, labelled amounts): ideas from the "finance-expert" skill's money invariants; no code from it was available or used
+- Canadian tax rules in scripts/ca_tax_check.py follow CRA guide T4037 and Income Tax Act s.54 / s.251.1 as published by the CRA; original code
 - freqtrade (GPL-3.0): referenced via its CLI only; no freqtrade code is included.
 No code from these projects is copied except short illustrative API examples.
