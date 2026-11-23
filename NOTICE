@@ -8,5 +8,6 @@ This skill adapts ideas and condensed prompt wording from:
 - @DN_degen, "I Was Asleep. My AI Desk Wasn't" (X article, 2026-11-15): kill-filter and desk structure, paraphrased
 - NautilusTrader (LGPL-3.0), PyBroker (Apache-2.0 + Commons Clause), vectorbt (Fair-code), HftBacktest (MIT): referenced as external dependencies only
 - roan-maverick/MIT-trader-skill (MIT): rule-screening method, reimplemented in scripts/rule_screen.py; its CC BY-NC-SA lecture notes are linked, not included
+- Permutation gates in scripts/permutation_test.py: original code following Timothy Masters' permutation-testing method as described in a @rohonchain article (2026-11-11)
 - freqtrade (GPL-3.0): referenced via its CLI only; no freqtrade code is included.
 No code from these projects is copied except short illustrative API examples.
