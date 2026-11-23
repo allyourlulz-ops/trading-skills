@@ -18,7 +18,7 @@ skills/trading-research/
   SKILL.md                  intent guard, rules, output format, workflows
   references/               committee, data-layer, strategies, backtesting, risk-and-execution,
                             sentiment, forecasting, mcp-servers, repo-evaluation
-  scripts/                  position_size.py, risk_check.py, validate_backtest.py (stdlib Python)
+  scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py (stdlib Python)
   assets/                   risk-limits.json, MCP configs, strategy YAML + SignalEngine templates
 ```
 
