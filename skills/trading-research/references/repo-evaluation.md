@@ -21,6 +21,21 @@ Score = usefulness as knowledge/tooling for an AI trading-research skill (1–5)
 | janestreet/agent_skills | MIT | 1.5 | Description/intent-guard style | Only a Socratic tutor skill |
 | quantopian/zipline | Apache-2.0 | 1 | Don't use | Dead since 2020 |
 
+## From @DN_degen's 2026-11-23 "8 Grok agents" post (audited 2026-11-23)
+The post's claims (124.9x overnight) are unverified and it ends in "comment DN"; its repo-to-role labels are cosmetic. Verdicts are on the repos themselves.
+
+| Repo | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| kernc/backtesting.py | AGPL-3.0 | 3.5 | Lightweight backtests (backtesting.md) | Use as dependency only; post called it a honeypot checker, it isn't |
+| pola-rs/polars | MIT | 3.5 | Large bar-set handling (data-layer.md) | Post called it a rug watcher |
+| stefan-jansen/pyfolio-reloaded | Apache-2.0 | 3 | Tearsheets (backtesting.md) | Replaces quantopian/pyfolio |
+| kevinheavey/solders | Apache-2.0 | 3 | Solana on-chain reads (onchain-memecoin.md) | Active |
+| jup-ag/jupiter-quote-api-node | none listed | 2 | Swap quotes, mention only | No licence file |
+| quantopian/pyfolio | Apache-2.0 | 1 | Don't use | No updates since 2023 |
+| MeteoraAg/dlmm-sdk | none listed | 1 | Skip | LP tooling, not research |
+| plotly/plotly.py | MIT | 1 | Skip | Charting only |
+The companion article (2026-11-15) contributed the kill filter, wallet-level limits, file-based desk memory and staged rollout.
+
 ## Also worth adding (from @gusik4ever's 2026-11-20 roundup; not yet audited)
 - tradermonty/claude-trading-skills: daily market check, weekly portfolio review, regime-gated swing setups.
 - Jakeschincariol/trader-skill: 13F mirroring, congressional trades, screener, tax lots.
