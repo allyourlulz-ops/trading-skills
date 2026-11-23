@@ -11,7 +11,7 @@ budget 5000, cash_buffer_pct 10, max_position_pct 25, max_order_usd 4000, max_lo
 per-name cap → net cap → sector cap → beta cap → volatility cap → drawdown halving (at −10%) → gross cap; stop-out at −20% drawdown; ADV cap (order ≤ 5% of 20-day ADV).
 
 ## Three-gate execution (one order at a time)
-1. `scripts/risk_check.py` returns PASS for this exact order (fingerprint: symbol, side, qty, type, limit, stop).
+1. `scripts/risk_check.py` returns PASS for this exact order (RESIZE means cut qty by `size_multiplier` and check again) (fingerprint: symbol, side, qty, type, limit, stop).
 2. The user types an explicit yes in the conversation that names the ticker and size. Reject "sure", "yes to all", or a yes for a different ticker/amount. Never batch.
 3. The client's own allow-once permission card for the order tool.
 Exits and stop-reductions are never blocked by daily limits. No orders from scheduled/background runs. Never ask for API keys in chat; never switch paper→live; never call bulk tools on your own.
@@ -36,3 +36,13 @@ Scale by at most +50% at a time, re-reviewing weekly. One good week is a sample,
 
 ## Regulatory note
 Pattern-day-trader rules and margin requirements change; check the broker's current account config (`get_account_config`) rather than assuming a rule.
+
+## Event-timing gates (risk_check.py --context)
+Before a new entry, pull a small context from the data MCP server (earnings calendar, last close history, VIX, GLD/TLT/UUP 5-day change) into `context.json` and pass `--context`. Thresholds live under `timing` in assets/risk-limits.json.
+- **Earnings blackout:** next earnings within 14 days → BLOCK new entries (set `earnings_blackout_action` to `warn` only if the user asks). Unknown date → warning; treat it as inside the blackout until checked.
+- **Post-earnings spike:** up more than 15% within 7 days after earnings → "may be priced in", size ×0.7.
+- **Overbought:** RSI(14) > 70 and within 5% of the 52-week high (buys) → size ×0.8.
+- **Market stress:** VIX > 30 → size ×0.7.
+- **Risk-off:** GLD ≥ +2%, TLT ≥ +1% and UUP ≥ +1% over 5 days together → size ×0.7.
+Multipliers compound, floor 0.25, and can only shrink a trade. Exits are never blocked by these gates. Thresholds are heuristics from udiedrichsen/stock-analysis, not backtested; test them with permutation_test.py before trusting them as signals.
+
