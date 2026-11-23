@@ -5,7 +5,7 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.3.0"
+  version: "1.4.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill"
 ---
 
@@ -56,7 +56,7 @@ Unparseable or contradictory output becomes `REVIEW`, never a silent Hold. "Conf
 ## 3. Workflows (short form; details in references)
 - **analyse:** snapshot → 4 analysts in parallel (technical ≤8 non-redundant indicators, fundamentals as-filed, news/macro, sentiment) → bull vs bear (1-2 rounds) → research manager plan → trader proposal (absolute entry/stop from ATR & levels) → risk debate (aggressive/neutral/conservative) → portfolio manager rating. See references/committee.md.
 - **screen:** pick strategies from references/strategies.md by market regime; each has numeric thresholds → score delta → entry/stop/reason. Negative news is a one-vote veto.
-- **backtest:** choosing among many variants? screen them first with `scripts/rule_screen.py` (week-clustered t, 70/30 date split, Benjamini-Hochberg). Then write the strategy contract, run, then pass the hard gates in references/backtesting.md, then `scripts/validate_backtest.py` (bootstrap Sharpe CI, t-test p-value, Deflated Sharpe, buy-and-hold delta). Max 3 repair iterations.
+- **backtest:** choosing among many variants? screen them first with `scripts/rule_screen.py` (week-clustered t, 70/30 date split, Benjamini-Hochberg). Then write the strategy contract, run, pass the hard gates in references/backtesting.md, then the permutation gates with `scripts/permutation_test.py` (in-sample and walk-forward, plus a plateau check), then `scripts/validate_backtest.py` (bootstrap Sharpe CI, t-test p-value, Deflated Sharpe, buy-and-hold delta). Max 3 repair iterations.
 - **execute:** three gates, one order at a time: `scripts/risk_check.py` PASS for this exact order → user types an explicit yes naming ticker, side and size → client's allow-once permission. See references/risk-and-execution.md.
 
 ## 4. Learning loop
