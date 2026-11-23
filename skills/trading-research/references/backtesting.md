@@ -77,6 +77,18 @@ Method adapted from roan-maverick/MIT-trader-skill's strategy hunter (MIT code, 
 6. **If nothing is approved, stand down** and say so plainly. On liquid US stocks simple rules usually fail out of sample; that is the screen working.
 Feed survivors into the full backtest + `scripts/validate_backtest.py`, with `--trials` set to the number of variants screened. For the maths behind each step, the companion `mit-trader` skill's lecture notes (CC BY-NC-SA 4.0, not bundled here) map them to 18.S096 lectures.
 
+## Permutation gates (run scripts/permutation_test.py)
+Optimisation always finds something, even in noise. These gates ask whether the optimised result beats the same optimisation run on shuffled price paths (same start, end and bar-return distribution, every real pattern destroyed). Pull closes through the data MCP server (OpenBB `equity_price_historical`, Alpaca stock/crypto bars, CCXT), save `date,close` to CSV, then run locally. No outside platform is needed.
+- **Measure every bar.** Position is 1, -1 or 0 on each bar; score bar returns (profit factor), not per-trade results.
+- **Gate 1, in-sample:** optimise on ~4 years. Mediocre here is worse everywhere else; too perfect usually means a leak.
+- **Gate 2, in-sample permutation:** `--mode insample --perms 1000`. Pass at p < 0.01. Run before touching walk-forward data, so failed ideas never see it.
+- **Plateau check** (same run): a real edge keeps most of its score one grid step away (`PLATEAU`); a `SPIKE` is a lucky setting, reject it. A plateau alone proves nothing: noise can be flat too.
+- **Gate 3, walk-forward:** re-optimise on the trailing window (`--train`, e.g. 1008 daily bars), trade the next `--test` bars (e.g. 21), roll forward. Worse than in-sample is normal; it must still be worth trading.
+- **Gate 4, walk-forward permutation:** `--mode walkforward`; only bars after the first training window are shuffled. Pass at p < 0.05 with ~1 year out of sample, p < 0.01 with 2+ years. Slow: start with `--perms 200`, confirm finalists at 1000.
+- Testing 100 ideas against the same walk-forward year and keeping the best overfits it anyway. Keep a log of every idea and count it in `--trials`.
+- A strategy that passes all four earns a paper account, then the staged rollout in risk-and-execution.md. Re-run Gate 4 weekly on new data; anything that starts failing goes back to research.
+Method: Timothy Masters' permutation testing for trading systems, as laid out in a @rohonchain article (2026-11-11). Reimplemented here from the description; the article's platform pitch is not part of this skill.
+
 ## Validation (run scripts/validate_backtest.py)
 Report all of:
 - CAGR, Sharpe, Sortino, max drawdown + duration, win rate, profit factor, expectancy, trade count.
