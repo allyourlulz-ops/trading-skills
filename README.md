@@ -6,9 +6,6 @@ An agent skill (skills.sh / Agent Skills format) for evidence-first trading rese
 ```bash
 npx skills add allyourlulz-ops/trading-skills            # any agent supported by the skills CLI
 npx skills add allyourlulz-ops/trading-skills -g -a claude-code -y
-# Claude Code plugin
-/plugin marketplace add allyourlulz-ops/trading-skills
-/plugin install trading-skills@trading-skills
 ```
 Then add MCP servers from `skills/trading-research/assets/mcp-config.research.json` (research only) or `mcp-config.paper-execute.json` (paper orders).
 
