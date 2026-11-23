@@ -31,6 +31,14 @@ After each close, `record --pnl` so the loss limits and streak stop see it. `sta
 
 **Client permissions for mandate runs:** allow `place_stock_order` (and `close_position`) only in the session or profile that runs the bot; keep `close_all_positions`, `cancel_all_orders`, options and crypto tools denied unless the mandate lists that asset class.
 
+## Money hygiene (from finance-expert's money invariants)
+- An amount is a value plus a currency; never add or compare across currencies without a recorded rate, its source and its date.
+- Every order carries a `client_order_id` derived from the action (strategy, symbol, signal bar). Send it to the broker too; a retry with the same id must never fill twice. `mandate.py check` refuses a reused id.
+- The mandate ledger is append-only. Correct a row by recording a reversal (`record --reverses <id>`), never by editing the file.
+- Reconcile the ledger against the broker's own fills every session close: `mandate.py reconcile --broker fills.json`. Any break (a fill the ledger never saw, a quantity or price mismatch, a recorded order that never filled) writes HALT, because the loss limits are only as true as the ledger.
+- Fees, FX costs and taxes are separate lines, never netted into P&L silently.
+- Every number shown to the user is labelled: period, currency, realised or unrealised, gross or net of fees, source and as-of time.
+
 ## Alpaca client permissions
 - Always allow: read-only data/account tools.
 - Needs approval: `place_stock_order`, `cancel_order_by_id`, `replace_order_by_id`, `close_position`, `update_account_config`.
