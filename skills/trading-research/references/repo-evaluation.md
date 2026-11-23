@@ -62,3 +62,8 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | Repo | License | Score | Role in this skill | Notes |
 |---|---|---|---|---|
 | aardisaputra/uchicago_case3 | none (all rights reserved) | 2 | Idea only: Black-Litterman over several analysts' views | 2022 UChicago competition bot (3rd place, simulated P&L). Colab-only; passes tau where risk aversion belongs, L2-normalises weights. Not used as code |
+
+## udiedrichsen/stock-analysis (reviewed 2026-11-23, openclaw.army listing v5.0.0)
+| Repo | License | Score | Role in this skill | Notes |
+|---|---|---|---|---|
+| udiedrichsen/stock-analysis | not found (no public repo located) | 2 | Event-timing gate ideas only | Yahoo-based scorer with hand-set weights summing to 130%, no backtest; keyword-based geopolitical penalties. Timing guards are the useful part |
