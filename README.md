@@ -1,0 +1,29 @@
+# trading-skills
+
+An agent skill (skills.sh / Agent Skills format) for evidence-first trading research, backtesting and risk-gated execution over MCP. It distils 16 open-source trading and quant repos into one skill (see `skills/trading-research/references/repo-evaluation.md`).
+
+## Install
+```bash
+npx skills add allyourlulz-ops/trading-skills            # any agent supported by the skills CLI
+npx skills add allyourlulz-ops/trading-skills -g -a claude-code -y
+# Claude Code plugin
+/plugin marketplace add allyourlulz-ops/trading-skills
+/plugin install trading-skills@trading-skills
+```
+Then add MCP servers from `skills/trading-research/assets/mcp-config.research.json` (research only) or `mcp-config.paper-execute.json` (paper orders).
+
+## What's inside
+```
+skills/trading-research/
+  SKILL.md                  intent guard, rules, output format, workflows
+  references/               committee, data-layer, strategies, backtesting, risk-and-execution,
+                            sentiment, forecasting, mcp-servers, repo-evaluation
+  scripts/                  position_size.py, risk_check.py, validate_backtest.py (stdlib Python)
+  assets/                   risk-limits.json, MCP configs, strategy YAML + SignalEngine templates
+```
+
+## Publish to skills.sh
+Push this folder as a public GitHub repo. There's no submit step: it appears on skills.sh once people install it with `npx skills add owner/repo`. Validate first with `skills-ref validate ./skills/trading-research`.
+
+## Disclaimer
+Research and education only. Not investment advice. Paper trading by default. Backtests overstate live results.
