@@ -66,7 +66,7 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 ## udiedrichsen/stock-analysis (reviewed 2026-11-23, openclaw.army listing v5.0.0)
 | Repo | License | Score | Role in this skill | Notes |
 |---|---|---|---|---|
-| udiedrichsen/stock-analysis | not found (no public repo located) | 2 | Event-timing gate ideas only | Yahoo-based scorer with hand-set weights summing to 130%, no backtest; keyword-based geopolitical penalties. Timing guards are the useful part |
+| udiedrichsen/stock-analysis | not found (no public repo located) | 2 | Event-timing gate ideas only | Yahoo-based scorer with hand-set weights summing to 130%, no backtest; keyword-based geopolitical penalties. Timing guards are the useful part. Re-reviewed 2026-11-23 (SKILL.md text): added VIX backwardation, source-backed event risk, crypto BTC drag gates, 30% concentration warning in rebalance.py; still skipped the weighted score, keyword news scan and hard-coded ticker lists |
 
 ## hft.md sources (reviewed 2026-11-23)
 | Source | License | Score | Role in this skill | Notes |
