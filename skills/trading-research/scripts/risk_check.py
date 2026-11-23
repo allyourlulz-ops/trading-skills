@@ -8,7 +8,9 @@ state.json: {"date":"2026-11-23","trades_today":1,"orders_today":2,"planned_loss
 context.json (optional, from the data MCP server; enables the event-timing gates, entries only):
             {"as_of":"2026-11-23","next_earnings_date":"2026-12-02","last_earnings_date":"2026-10-30",
              "return_since_last_earnings_pct":4.1,"rsi14":66,"pct_below_52w_high":3.0,"vix":18.5,
-             "safe_haven_5d_pct":{"GLD":0.4,"TLT":-0.2,"UUP":0.1}}
+             "safe_haven_5d_pct":{"GLD":0.4,"TLT":-0.2,"UUP":0.1}, "vix3m":20.1,
+             "event_risk":[{"event":"Taiwan Strait blockade","exposure":"direct","source_url":"https://..."}],
+             "btc_corr_30d":0.82, "btc_5d_pct":-4.0}   (last two for crypto)
 Times are interpreted in the limits' timezone (default America/New_York).
 RESIZE means: set qty to allowed_qty, add "base_qty" (the original size) to the order, run again."""
 import argparse, hashlib, json, os, sys
@@ -69,6 +71,22 @@ def timing_gates(L, o, c, now, blocks, warns):
     if sh and all(k in sh for k in th) and all(sh[k] >= v for k, v in th.items()):
         warns.append("risk-off: gold, Treasuries and the dollar all rising over 5 days")
         mult *= G.get("risk_off_multiplier", 0.7)
+    v3 = c.get("vix3m")
+    if vix is not None and v3 and vix > v3:
+        warns.append(f"VIX term structure inverted (VIX {vix} > VIX3M {v3}): near-term stress")
+        mult *= G.get("vix_backwardation_multiplier", 0.8)
+    for ev in c.get("event_risk") or []:
+        if not ev.get("source_url"):
+            warns.append(f"event_risk '{ev.get('event')}' ignored: needs a primary-source URL, not a keyword hit")
+            continue
+        m = G.get("event_direct_multiplier", 0.7) if ev.get("exposure") == "direct" else G.get("event_sector_multiplier", 0.85)
+        warns.append(f"event risk: {ev.get('event')} ({ev.get('exposure', 'sector')} exposure)")
+        mult *= m
+    if ac == "crypto" and o["side"] == "buy":
+        corr, b5 = c.get("btc_corr_30d"), c.get("btc_5d_pct")
+        if corr is not None and b5 is not None and corr >= G.get("btc_corr_min", 0.7) and b5 <= G.get("btc_drawdown_5d_pct", -10):
+            warns.append(f"BTC down {b5}% in 5 days and this coin's 30-day correlation is {corr}")
+            mult *= G.get("btc_drag_multiplier", 0.7)
     return max(mult, floor) if mult < 1 else 1.0
 
 
