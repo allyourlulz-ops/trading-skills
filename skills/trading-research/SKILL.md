@@ -5,8 +5,8 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.1.0"
-  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders"
+  version: "1.2.0"
+  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest"
 ---
 
 # Trading Research
@@ -67,7 +67,7 @@ Log each call (date, ticker, rating, conviction, horizon, benchmark). After the 
 - references/data-layer.md: OpenBB routes, Alpaca data tools, data traps
 - references/committee.md: role prompts, personas, blind mode, portfolio context
 - references/strategies.md: YAML strategy format and built-in setups
-- references/backtesting.md: freqtrade, Vibe-Trading SignalEngine, zipline-reloaded, validation
+- references/backtesting.md: engine picker (incl. NautilusTrader, PyBroker, vectorbt, HftBacktest for day trading), validation
 - references/risk-and-execution.md: limits, three-gate execution, Alpaca permissions
 - references/sentiment.md: last30days, StockTwits, Polymarket
 - references/forecasting.md: Kronos
