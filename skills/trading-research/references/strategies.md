@@ -27,3 +27,11 @@ Other named setups in daily_stock_analysis: chan_theory, dragon_head, emotion_cy
 
 ## Market-regime gate
 Before any long setup, check the index: above its 50-day MA and the 50 above the 200 = risk-on; otherwise cut size in half or require the stricter setups only.
+
+## Mechanical accumulation and range setups (from common bot designs)
+- **Ladder / scale out-scale in:** preset sell levels on the way up and buy-back levels lower, fixed share counts. Write the levels before the first fill; no moving them intraday.
+- **Grid (range):** limit buys a little below and sells a little above inside a range the user names; stop the grid on a close outside the range. Grids lose in trends: run the regime check first.
+- **Sentiment-weighted DCA:** fixed schedule, buy more in extreme fear and less in extreme greed (CNN Fear & Greed or crypto equivalents). Unproven as an edge; the schedule is the point.
+- **Quality dip:** only names that pass the fundamentals screen, after a market-wide selloff, with a stop on every position. Test the dip depth with rule_screen.py before using it.
+- **Indicator tickets (RSI, MACD, Bollinger, VWAP pullback, 9 EMA pullback, stochastic, compression breakout):** each produces a ticket with entry, stop, target and invalidation ("no close through the line, no entry"), then goes through rule_screen.py and the permutation gates before any paper trade.
+
