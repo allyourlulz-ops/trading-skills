@@ -1,3 +1,0 @@
-{"name": "trading-skills", "owner": {"name": "hermit"},
- "plugins": [{"name": "trading-skills", "source": "./", "description": "Evidence-first trading research, backtesting and risk-gated execution over MCP.",
-   "version": "1.10.0", "skills": ["./skills/trading-research"]}]}
