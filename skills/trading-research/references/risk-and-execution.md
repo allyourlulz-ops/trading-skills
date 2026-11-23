@@ -27,5 +27,12 @@ Prefer limit or bracket orders with the stop attached.
 ## Generic gating for any trading MCP (QuantDinger pattern)
 Token scopes by risk: read / write / backtest / notify / trade. Every mutating call carries a caller-generated `idempotency_key`. Require explicit `confirm_order=true`; live needs a separate `confirm_live_trading=true` plus a server flag. Keep an emergency stop that cancels agent orders and revokes trade tokens.
 
+## Staged rollout (never skip a stage)
+1. Paper: every role runs, the executor only logs. Advance when the funnel works and logs are clean.
+2. Small live, every order approved by hand. Advance only when net positive AFTER fees and slippage (paper fills hide both).
+3. Semi-auto: auto below a small size, ask above. Advance when the logs show zero broken rules.
+4. Unattended runs are out of scope for this skill (rule 7: nothing executes from a background task).
+Scale by at most +50% at a time, re-reviewing weekly. One good week is a sample, not a strategy. Change one rule per week so you know which one worked.
+
 ## Regulatory note
 Pattern-day-trader rules and margin requirements change; check the broker's current account config (`get_account_config`) rather than assuming a rule.
