@@ -71,5 +71,15 @@ Call `list_skills` first. Tools include `get_market_data`, `backtest`, `factor_a
 ## tick-stock-panel (China A-shares)
 `tsp-mcp-server` with `TSP_BASE`, `TSP_TOKEN`, `TSP_SCOPES` (read:market, read:analysis, run:backtest). Tools: `search_instrument`, `get_kline`, `list_strategies`, `run_backtest`. A-share rules (T+1, price limits) are modelled.
 
+## Local research and validation servers (audited 2026-11-24; user installs, pin a version)
+Each runs on the user's machine. None places live orders. The user runs the install command, not the agent.
+- **canli-mcp** (arhancanli/canli-mcp, MIT, npm): SEC filings, insider and 13F data, options chains (Cboe delayed), macro, plus quant and backtest-validation tools (deflated Sharpe, PBO, leakage and placebo checks). No key for most tools. `claude mcp add --scope project canli -- npx -y canli-mcp@<version>`. Young project (single maintainer); cross-check its numbers.
+- **backtester-mcp** (bcosm/backtester-mcp, Apache-2.0, PyPI): local engine on CSV or Parquet, validation pipeline with bootstrap Sharpe CI, deflated Sharpe, PBO, walk-forward and three fill scenarios. `pip install backtester-mcp==<version>`.
+- **tradingview-mcp** (atilaahmettaner/tradingview-mcp, MIT, `pip install tradingview-mcp-server`): screeners, multi-timeframe technicals, and a walk-forward backtest verdict (ROBUST, MODERATE, WEAK, OVERFITTED). Not affiliated with TradingView. Self-host only; its hosted sign-in tier is an outside platform and is out of scope.
+- **Oracle3** (YichengYang-Ethan/oracle3-prediction-market-agent, Apache-2.0): prediction-market data, fee-aware relationship checks and a local paper ledger. `pip install -e .` from a pinned checkout, then `oracle3-mcp`. Paper ledger only; its separate trading engine is not used.
+- **risk-aware-trading-agents / rta-bench-1** (jackson-cmd/risk-aware-trading-agents, MIT): benchmark that replays news by the minute it was published through frozen 2020, 2022 and 2026 markets, with paper trading. `uvx risk-aware-trading-agents`. Bring your own news (free SEC 8-Ks work); its licensed headlines are not distributed. Use it to test the committee and bots, not as a signal source.
+
+Skipped under the pure-MCP rule: quantconnect-mcp (cloud platform, live deploy), MarginPad and TradeStaq (hosted trading platforms), reamer-research-mcp (needs the separately licensed Reamer engine).
+
 ## Not usable without special access
 - gs-quant: needs a Goldman Sachs institutional client id/secret. Its packaged skills (`python -m gs_quant.skills install --global`) are a good layout model only.
