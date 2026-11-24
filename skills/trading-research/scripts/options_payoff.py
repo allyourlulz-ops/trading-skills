@@ -4,7 +4,8 @@ Stdlib only, no network (pull chain, IV and spot from the data MCP server).
 Usage: options_payoff.py --spot 100 --legs legs.json [--iv 0.30] [--days 30] [--rate 0.04]
 legs.json: [{"type":"put","side":"sell","strike":95,"premium":1.80,"qty":1},
             {"type":"put","side":"buy","strike":90,"premium":0.70,"qty":1}]
-           type call|put|stock (stock: premium = entry price, strike ignored); qty in contracts (x100)
+           type call|put|stock (stock: premium = entry price per share, strike ignored, qty in SHARES);
+           option qty is in contracts (x100 shares). Covered call = 100 shares + 1 short call.
 Per-leg "iv" overrides --iv. Prints JSON: net credit/debit, max profit, max loss, breakevens,
 probability of profit (lognormal at the given IV), net greeks, payoff table.
 """
@@ -66,8 +67,8 @@ def main():
            for i in range(len(grid) - 1) if pay[i] == 0 or (pay[i] < 0) != (pay[i + 1] < 0)]
     has_long_call_tail = sum((1 if L["side"] == "buy" else -1) * L.get("qty", 1) * (100 if L["type"] == "call" else 1)
                              for L in legs if L["type"] in ("call", "stock"))
-    max_p = "unlimited" if has_long_call_tail > 0 else round(max(pay), 2)
-    max_l = "unlimited" if has_long_call_tail < 0 else round(min(pay), 2)
+    max_p = "unlimited" if has_long_call_tail > 0 else round(max(pay + [payoff(legs, 0.0)]), 2)
+    max_l = "unlimited" if has_long_call_tail < 0 else round(min(pay + [payoff(legs, 0.0)]), 2)
     v_ = a.iv
     # probability of profit under lognormal terminal price with drift r
     pop = 0.0
@@ -79,18 +80,26 @@ def main():
         pop += 1 - N((math.log(grid[-1] / S) - (a.rate - v_ * v_ / 2) * T) / (v_ * math.sqrt(T)))
     if pay[0] > 0:
         pop += N((math.log(grid[0] / S) - (a.rate - v_ * v_ / 2) * T) / (v_ * math.sqrt(T)))
-    net, G = 0.0, dict(delta=0.0, gamma=0.0, theta=0.0, vega=0.0)
+    net, stock_cost, G = 0.0, 0.0, dict(delta=0.0, gamma=0.0, theta=0.0, vega=0.0)
+    warnings = []
+    opt_shares = sum(100 * L.get("qty", 1) for L in legs if L["type"] == "call" and L["side"] == "sell")
+    stock_long = sum(L.get("qty", 1) for L in legs if L["type"] == "stock" and L["side"] == "buy")
+    if stock_long and stock_long < 100 and opt_shares:
+        warnings.append(f"stock qty is {stock_long} shares; stock qty is in shares, not lots (a covered call needs 100 per contract)")
+    if stock_long and opt_shares > stock_long:
+        warnings.append(f"short calls cover {opt_shares} shares but only {stock_long} are held: {opt_shares - stock_long} uncovered")
     for L in legs:
         sgn = 1 if L["side"] == "buy" else -1
         if L["type"] == "stock":
-            G["delta"] += sgn * L.get("qty", 1); net -= sgn * L["premium"] * L.get("qty", 1); continue
+            G["delta"] += sgn * L.get("qty", 1); stock_cost += sgn * L["premium"] * L.get("qty", 1); continue
         m = 100 * L.get("qty", 1)
         _, d, g, th, ve = bs(L["type"], S, L["strike"], T, a.rate, L.get("iv", v_))
         G["delta"] += sgn * d * m; G["gamma"] += sgn * g * m; G["theta"] += sgn * th * m; G["vega"] += sgn * ve * m
         net -= sgn * L["premium"] * m
     table = [dict(price=round(x, 2), pnl=round(payoff(legs, x), 2))
              for x in sorted({round(S * k, 2) for k in (0.8, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2)} | set(strikes))]
-    print(json.dumps(dict(net_premium=round(net, 2), credit=net > 0, max_profit=max_p, max_loss=max_l,
+    print(json.dumps(dict(net_option_premium=round(net, 2), credit=net > 0, stock_cost=round(stock_cost, 2),
+                          net_cash_outlay=round(stock_cost - net, 2), warnings=warnings, max_profit=max_p, max_loss=max_l,
                           breakevens=bes, prob_of_profit_pct=round(100 * pop, 1),
                           greeks={k: round(v, 3) for k, v in G.items()}, payoff_at_expiry=table,
                           notes=["Probability of profit assumes the IV given; real moves have fatter tails.",
