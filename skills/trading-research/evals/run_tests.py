@@ -137,5 +137,78 @@ check("bl neutral cap keeps neutrality", d and max(abs(x) for x in d["target_wei
 code, _, _ = run("black_litterman.py", "--prices", bl, "--views", views, "--neutral", "--long-only")
 check("bl neutral refuses long-only", code != 0)
 
+# 10. monkey_test.py: strong edge is EDGE, noise is not, reversed calls are ANTI_EDGE
+def positions(path, edge, seed, flip=False):
+    random.seed(seed)
+    with open(path, "w", newline="") as fh:
+        w = csv.writer(fh); w.writerow(["id", "open_time", "side", "pnl", "fees"])
+        for i in range(300):
+            v = random.gauss(edge, 1.0)
+            w.writerow([i, f"2026-10-{1 + i % 28:02d}T10:00:00-04:00", "long", -v if flip else v, 0.05])
+for label, e, flip, want in (("edge", 0.6, False, "EDGE"), ("noise", 0.0, False, "LUCK"), ("anti", 0.6, True, "ANTI_EDGE")):
+    f = os.path.join(TMP, f"pos_{label}.csv"); positions(f, e, 21, flip)
+    code, out, err = run("monkey_test.py", "--positions", f)
+    check(f"monkey {label}", code == 0 and json.loads(out)["verdict"] == want, out[-200:] + err[-200:])
+
+# 11. attribution.py: pure beta+style is BETA_OR_STYLE, added alpha is SELECTION_ALPHA
+random.seed(31)
+fac, pb, pa = (os.path.join(TMP, n) for n in ("fac.csv", "pbeta.csv", "palpha.csv"))
+with open(fac, "w", newline="") as f1, open(pb, "w", newline="") as f2, open(pa, "w", newline="") as f3:
+    w1, w2, w3 = csv.writer(f1), csv.writer(f2), csv.writer(f3)
+    w1.writerow(["date", "mkt", "size", "mom"]); w2.writerow(["date", "ret"]); w3.writerow(["date", "ret"])
+    for t in range(500):
+        m, sz, mo = random.gauss(0.0005, 0.01), random.gauss(0, 0.005), random.gauss(0, 0.005)
+        w1.writerow([t, m, sz, mo]); w2.writerow([t, 1.2 * m + 0.8 * mo + random.gauss(0, 0.002)])
+        w3.writerow([t, 0.5 * m + 0.002 + random.gauss(0, 0.003)])
+code, out, err = run("attribution.py", "--returns", pb, "--factors", fac)
+d = json.loads(out) if code == 0 else {}
+check("attribution beta", d.get("verdict") == "BETA_OR_STYLE" and abs(d["betas"]["mkt"] - 1.2) < 0.1, out[-200:] + err[-200:])
+code, out, _ = run("attribution.py", "--returns", pa, "--factors", fac, "--window", "120")
+check("attribution alpha rolling", code == 0 and json.loads(out)["verdict"] == "SELECTION_ALPHA")
+
+# 12. mask.py: blinded file has no real ticker or date; unmask round-trips
+bars, mbars, key = (os.path.join(TMP, n) for n in ("bars.csv", "mbars.csv", "key.json"))
+with open(bars, "w", newline="") as fh:
+    w = csv.writer(fh); w.writerow(["date", "symbol", "close"])
+    for d_ in ("2026-01-02", "2026-01-05"):
+        for s_ in ("AAPL", "MSFT"): w.writerow([d_, s_, 100])
+run("mask.py", "mask", "--in", bars, "--out", mbars, "--key", key, "--level", "blinded")
+code, _, _ = run("mask.py", "check", "--in", mbars, "--key", key)
+check("mask clean", code == 0)
+code, _, _ = run("mask.py", "check", "--in", bars, "--key", key)
+check("mask detects leak", code != 0)
+_, out, _ = run("mask.py", "unmask", "--key", key, "--value", "day_+3")
+check("mask unmask date", out.strip() == "2026-01-05")
+
+# 13. pit_store.py: forming bar hidden, priority source wins, conflict kept, cooldown skips source
+routes = os.path.join(SCRIPTS, "..", "assets", "data-routes.json")
+store, st, r1, r2 = (os.path.join(TMP, n) for n in ("m.jsonl", "st.json", "r1.json", "r2.json"))
+mk = lambda s_, d_, c: {"symbol": s_, "ts": f"{d_}T00:00:00-05:00", "open": 1, "high": 2, "low": 1, "close": c, "volume": 1}
+json.dump([mk("aapl", "2026-11-20", 100), mk("aapl", "2026-11-23", 101), mk("aapl", "2026-11-24", 102)], open(r1, "w"))
+json.dump([mk("AAPL", "2026-11-23", 103)], open(r2, "w"))
+NOW = "2026-11-24T18:00:00-05:00"
+for src, f in (("openbb", r1), ("alpaca", r2)):
+    run("pit_store.py", "ingest", "--store", store, "--source", src, "--timeframe", "1d", "--file", f,
+        "--routes", routes, "--asset", "equity_us", "--now", NOW)
+code, out, err = run("pit_store.py", "asof", "--store", store, "--symbol", "AAPL", "--timeframe", "1d", "--at", NOW)
+d = json.loads(out) if code == 0 else {}
+check("pit forming hidden", d and len(d["rows"]) == 2 and d["hidden_future_or_forming"] == 1, err[-200:])
+check("pit priority and conflict", d and d["rows"][-1]["source"] == "alpaca" and d["rows"][-1].get("alt") == {"openbb": 101.0})
+run("pit_store.py", "fail", "--state", st, "--source", "alpaca", "--code", "429", "--now", NOW)
+_, out, _ = run("pit_store.py", "route", "--routes", routes, "--asset", "equity_us", "--state", st, "--now", NOW)
+check("pit cooldown skips", json.loads(out)["try_in_order"][0] == "openbb")
+
+# 14. score_tool_calls.py: perfect run scores 1, a forbidden order tool is a safety fail
+sc = os.path.join(HERE, "tool_scenarios.json"); runf = os.path.join(TMP, "run.json")
+S = json.load(open(sc))["scenarios"]
+json.dump({x["id"]: x["reference"] for x in S}, open(runf, "w"))
+p = subprocess.run([sys.executable, os.path.join(HERE, "score_tool_calls.py"), "--scenarios", sc, "--run", runf], capture_output=True, text=True)
+d = json.loads(p.stdout) if p.returncode == 0 else {}
+check("tool score perfect", d and d["overall"]["TF1"] == 1 and d["overall"]["EMR"] == 1, p.stderr[-200:])
+bad = {x["id"]: x["reference"] for x in S}; bad["mar-quote"] = [["get_stock_snapshot", "place_stock_order"]]
+json.dump(bad, open(runf, "w"))
+p = subprocess.run([sys.executable, os.path.join(HERE, "score_tool_calls.py"), "--scenarios", sc, "--run", runf], capture_output=True, text=True)
+check("tool score safety fail", p.returncode == 1 and "mar-quote" in json.loads(p.stdout)["safety_failures"])
+
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
