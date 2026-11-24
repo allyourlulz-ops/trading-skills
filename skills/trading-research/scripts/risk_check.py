@@ -11,6 +11,10 @@ context.json (optional, from the data MCP server; enables the event-timing gates
              "safe_haven_5d_pct":{"GLD":0.4,"TLT":-0.2,"UUP":0.1}, "vix3m":20.1,
              "event_risk":[{"event":"Taiwan Strait blockade","exposure":"direct","source_url":"https://..."}],
              "btc_corr_30d":0.82, "btc_5d_pct":-4.0}   (last two for crypto)
+bar.json (optional, the last bar the signal was computed on; entries only):
+            {"timeframe":"1h","last_bar_open":"2026-11-23T14:00:00+00:00","closed":true}
+            BLOCK if the bar is still forming, or if its close is older than timing.max_stale_bars bars
+            (default 3): the exchange or feed has frozen. Timeframes: 1m 5m 15m 30m 1h 4h 1d.
 Times are interpreted in the limits' timezone (default America/New_York).
 RESIZE means: set qty to allowed_qty, add "base_qty" (the original size) to the order, run again."""
 import argparse, hashlib, json, os, sys
@@ -30,6 +34,37 @@ def fingerprint(o):
 def _days(a, b):
     from datetime import date
     return (date.fromisoformat(str(a)[:10]) - date.fromisoformat(str(b)[:10])).days
+
+
+TF_SEC = {"1m": 60, "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1d": 86400}
+
+
+def bar_gates(L, b, now, tz, blocks, warns):
+    """Live-bar hygiene: no signal from an unfinished bar, no trading on frozen data."""
+    if b is None:
+        warns.append("no --bar: bar freshness unchecked (bots should always pass it)")
+        return
+    tf = TF_SEC.get(b.get("timeframe"))
+    if tf is None:
+        blocks.append(f"bar timeframe {b.get('timeframe')!r} unknown; use one of {', '.join(TF_SEC)}")
+        return
+    if b.get("closed") is not True:
+        blocks.append("signal uses a bar that is still forming: drop the last unfinished bar and recompute")
+    try:
+        opened = datetime.fromisoformat(str(b["last_bar_open"]).replace("Z", "+00:00"))
+    except (KeyError, ValueError):
+        blocks.append("bar.last_bar_open missing or not ISO 8601")
+        return
+    n = now if now.tzinfo else (now.replace(tzinfo=tz) if tz else None)
+    if opened.tzinfo is None or n is None:
+        blocks.append("bar time needs a timezone offset (e.g. +00:00) to measure staleness")
+        return
+    age = (n - opened).total_seconds() - tf  # seconds since the bar closed
+    limit = L.get("timing", {}).get("max_stale_bars", 3)
+    if age < 0 and b.get("closed") is True:
+        blocks.append(f"bar marked closed but it closes in {int(-age)}s; clock or feed mismatch")
+    elif age > limit * tf:
+        blocks.append(f"data is stale: last bar closed {int(age)}s ago, more than {limit} x {b['timeframe']}; feed may be frozen")
 
 
 def timing_gates(L, o, c, now, blocks, warns):
@@ -97,6 +132,7 @@ def main():
     ap.add_argument("--limits", default=os.path.join(HERE, "..", "assets", "risk-limits.json"))
     ap.add_argument("--now")
     ap.add_argument("--context", help="market/event context JSON for timing gates")
+    ap.add_argument("--bar", help="last-bar JSON for the freshness gate")
     a = ap.parse_args()
     L = json.load(open(a.limits)); o = json.load(open(a.order))
     st = json.load(open(a.state)) if a.state else {}
@@ -138,6 +174,7 @@ def main():
         if st.get("orders_today", 0) >= L.get("max_orders_per_day", 99): blocks.append("max orders per day reached")
         if hhmm < L.get("no_entries_before", "00:00"): blocks.append(f"no entries before {L['no_entries_before']}")
         if hhmm > L.get("no_entries_after", "23:59"): blocks.append(f"no entries after {L['no_entries_after']}")
+        bar_gates(L, json.load(open(a.bar)) if a.bar else None, now, tz, blocks, warns)
         mult = timing_gates(L, o, json.load(open(a.context)) if a.context else None, now, blocks, warns)
     else:
         mult = 1.0
