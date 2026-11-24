@@ -16,7 +16,7 @@ def main():
     ap.add_argument("--prob", type=float, required=True)
     ap.add_argument("--bankroll", type=float, required=True)
     ap.add_argument("--side", choices=["yes", "no"], default="yes")
-    ap.add_argument("--fee-pct", type=float, default=0.0, help="fee as % of winnings")
+    ap.add_argument("--fee-pct", type=float, default=0.0, help="fee as %% of winnings")
     ap.add_argument("--fraction", type=float, default=0.25)
     ap.add_argument("--min-edge-pts", type=float, default=8.0)
     ap.add_argument("--max-stake-pct", type=float, default=5.0)
