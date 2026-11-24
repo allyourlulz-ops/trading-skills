@@ -5,6 +5,12 @@ Read for `analyse`, `screen`, `portfolio` and every `bot` mandate. Ideas from th
 - **rta-bench-1** (jackson-cmd/risk-aware-trading-agents, MIT, v0.8.0). Its best LLM after training cutoff, Claude Haiku 4.5, made +7.2% in 2026 against SPY's +12.1%. LLMs trading alone earned beta, not alpha. The best performer in the same project was its rule-based `risk_aware` agent: 2026-01-02 to 2026-11-11 with news, +15.9% against SPY's +12.1%, Sharpe 1.70 against 0.77, max drawdown -5.3% against -8.9%. Over 2018 to 2026 it trailed SPY (10.4% a year against 14.1%) but fell about half as far (-18.2% against -33.7%). Figures as published by the project; survivorship-biased large-cap list.
 - **FinSkillBench** (arXiv 2610.03564, Oct 2026). Curated skills raised scores from 0.366 to 0.528; skills an agent wrote for itself added 0.005. Executable tools alone added 0.195, documents alone 0.056, and stacking long documents on tools cost turns.
 
+## Caution: the best return in one year is not the best strategy
+In the same project's research kit (56 large caps, at most 10 equal positions, no news), trend following on an EMA20/EMA50 cross had the top 2026 return: +21.1% against SPY's +12.1%. It lost 6.0% in 2022 (SPY -18.6%) and made +36.6% in 2020 (SPY +17.2%). Of the same five rules, the 20-day breakout lost 0.3% in 2026 and made +33.1% in 2020. No rule won every year, every confidence interval overlapped, and the list is today's large caps, so it carries survivorship bias.
+- Do not promote a rule because it topped one period's table. Test it across a bull year, a bear year and a crash, after costs, and run overfit.py on the whole family of rules that was tried.
+- The risk_aware playbook above is a drawdown tool, not a return booster: from 2018 to 2026 it made 10.4% a year against SPY's 14.1%. Say so whenever the user picks it for returns.
+- Figures as published by jackson-cmd/risk-aware-trading-agents v0.8.0; not re-run here.
+
 ## 1. Regime first (run scripts/regime.py)
 | Regime | Trigger | Buys | Discretionary sells | Size |
 |---|---|---|---|---|
