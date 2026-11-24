@@ -15,9 +15,9 @@ skills/trading-research/
   SKILL.md                  intent guard, rules, output format, workflows
   references/               committee, data-layer, strategies, backtesting, risk-and-execution,
                             sentiment, forecasting, mcp-servers, repo-evaluation
-  scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py, permutation_test.py, black_litterman.py, scorekeeper.py, crash_guard.py, rebalance.py, journal_stats.py, options_payoff.py, kelly.py, mandate.py, ca_tax_check.py, overfit.py, regime.py, lookahead_check.py (stdlib Python)
-  evals/                    run_tests.py (offline script tests), trigger_evals.json, task_evals.json
-  assets/                   risk-limits.json, MCP configs, strategy YAML + SignalEngine templates
+  scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py, permutation_test.py, black_litterman.py, scorekeeper.py, crash_guard.py, rebalance.py, journal_stats.py, options_payoff.py, kelly.py, mandate.py, ca_tax_check.py, overfit.py, regime.py, lookahead_check.py, monkey_test.py, attribution.py, mask.py, pit_store.py (stdlib Python)
+  evals/                    run_tests.py (offline script tests), trigger_evals.json, task_evals.json, tool_scenarios.json + score_tool_calls.py
+  assets/                   risk-limits.json, data-routes.json, MCP configs, strategy YAML + SignalEngine templates
 ```
 
 ## Publish to skills.sh
