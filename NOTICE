@@ -25,3 +25,7 @@ v1.12.0 (2026-11-24) additions, all own implementations, nothing copied:
 - Bailey, Borwein, Lopez de Prado and Zhu (2014), Bailey and Lopez de Prado (2014), Lopez de Prado (2018): PBO, deflated Sharpe, purged and combinatorial purged cross-validation (methods from papers).
 - Agent Skills guidance: Anthropic skill authoring best practices, agentskills.io, anthropics/skills skill-creator (trigger-eval format); Snyk agent-scan issue codes.
 - Listed MCP servers (user-installed, not bundled): arhancanli/canli-mcp (MIT), bcosm/backtester-mcp (Apache-2.0), atilaahmettaner/tradingview-mcp (MIT), YichengYang-Ethan/oracle3-prediction-market-agent (Apache-2.0).
+
+v1.13.0 (2026-11-24) additions, all own implementations, nothing copied:
+- @sopersone, "A Former WorldQuant Director Published 151 Strategies for Free. How to Automate Them With AI." (X, 2026-10-26): ideas for the unfinished-bar and stale-data gates, the two-sided filter warning and the funding cost line. The article's code has no licence and was not used.
+- Z. Kakushadze and J.A. Serur, 151 Trading Strategies (2018), SSRN 3247865, section 3.18: dollar-neutral max-Sharpe weight formula (method cited, text not copied).
