@@ -43,3 +43,12 @@ Use polars (MIT) instead of pandas for tick or multi-year minute data: lazy scan
 
 ## Ticker suffixes (Yahoo convention)
 `.TO` Toronto, `.V` TSX-V, `.L` London, `.HK` Hong Kong, `.T` Tokyo, `.NS` NSE India, `.SS`/`.SZ` Shanghai/Shenzhen, `.KS` Korea, `.TW` Taiwan, `BTC-USD` crypto.
+
+## Live data pipeline (scripts/pit_store.py)
+For bots and anything that runs more than once a day, keep one local point-in-time store instead of re-asking the model for prices:
+1. `pit_store.py route --routes ../assets/data-routes.json --asset equity_us --state state.json` lists the asset's MCP sources in priority order, skipping any in cooldown. Edit assets/data-routes.json to the servers you installed.
+2. Fetch from the first source with its MCP tool. On a 429, 5xx, timeout or auth error run `pit_store.py fail --source X --code 429` (429 cools 15 min, 5xx 2 min, doubling on repeats, cap 60 min), report it per source, and try the next one. `ok` resets a source after a good call.
+3. Write the rows to a file and `pit_store.py ingest --store merged.jsonl --source X --timeframe 1d --file rows.json --routes ... --asset ...`. Symbols are normalised, a bar is closed only once its close time has passed, closed bars beat forming ones, the higher-priority source wins ties, and a close that differs by more than 0.5% between sources is kept as a conflict (`pit_store.py conflicts`) to show both, never to average.
+4. Read with `pit_store.py asof --symbol X --timeframe 1d --at <decision time> --bar-out bar.json`. Only closed bars that finished on or before the decision time come back; pass `bar.json` to `risk_check.py --bar`.
+Every row keeps its source and fetch time, so a quote can always be cited (rule 1). Routing, fallback, cooldown and the anti-look-ahead read are ideas from HKUDS/AI-Trader (no licence file, so no code used); its direct Alpha Vantage, yfinance and Hyperliquid pulls are replaced by your MCP servers, which keeps this skill MCP-only.
+
