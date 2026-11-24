@@ -5,8 +5,8 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.13.0"
-  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill, risk-aware-trading-agents (rta-bench-1), FinSkillBench, Bailey and Lopez de Prado (PBO, DSR, CPCV)"
+  version: "1.14.0"
+  sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill, risk-aware-trading-agents (rta-bench-1), FinSkillBench, Bailey and Lopez de Prado (PBO, DSR, CPCV), KTD-Fin, FinMCP-Bench, AI-Trader, Alpha Arena"
 ---
 
 # Trading Research
@@ -31,6 +31,9 @@ Classify the request before doing any expensive work:
 | Situation | Read / run |
 |---|---|
 | Backtest looks too good, or many variants were tried | references/backtesting.md (overfitting gates) → `scripts/overfit.py pbo` and `dsr`, `scripts/permutation_test.py` |
+| Good returns: real edge, or market and style? | `scripts/monkey_test.py` (coin-flip test), `scripts/attribution.py` (market/style/selection); references/backtesting.md (edge or exposure) |
+| An LLM may remember the period it is tested on | `scripts/mask.py` (blind tickers and dates); references/backtesting.md |
+| Bot or repeated run needs prices | `scripts/pit_store.py` (source fallback, point-in-time store); references/data-layer.md (live data pipeline) |
 | Strategy code might peek at the future | `scripts/lookahead_check.py`; references/backtesting.md (point-in-time checklist) |
 | Need to know how aggressive to be today | `scripts/regime.py`; references/regime-and-news.md |
 | A headline or post seems to demand action | references/regime-and-news.md (verified news); §1a below |
@@ -91,7 +94,7 @@ Unparseable or contradictory output becomes `REVIEW`, never a silent Hold. "Conf
 Log each call with `scripts/scorekeeper.py log` (date, ticker, rating, conviction, confidence, horizon, source). After the horizon, `grade` it against the regional benchmark (`.TO`→`^GSPTSE`, `.L`→`^FTSE`, `.HK`→`^HSI`, `.T`→`^N225`, default `SPY`), then `report`: hit rate, Brier score, calibration by confidence and reliability per source. Write a one-paragraph lesson for each worst miss and feed recent lessons into the next portfolio-manager prompt.
 
 ## 4a. Testing this skill
-`python3 evals/run_tests.py` checks every script on synthetic data (no network); run it before each release. `evals/trigger_evals.json` (10 should-trigger, 10 should-not) and `evals/task_evals.json` are for the user to run in their own client, 3 runs each.
+`python3 evals/run_tests.py` checks every script on synthetic data (no network); run it before each release. `evals/trigger_evals.json` (10 should-trigger, 10 should-not) and `evals/task_evals.json` are for the user to run in their own client, 3 runs each. `evals/tool_scenarios.json` gives reference tool chains (single, multi-tool, multi-turn); score a run with `evals/score_tool_calls.py` (tool precision, recall, F1, exact match, and any forbidden order tool as a safety fail).
 
 ## 5. Reference index
 - references/mcp-servers.md: install/config for OpenBB, Alpaca, SEC EDGAR, Prediction Markets, Vibe-Trading, QuantDinger, daily_stock_analysis, tick-stock-panel MCP servers
