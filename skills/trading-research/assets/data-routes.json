@@ -1,0 +1,9 @@
+{"_note": "Source priority per asset class for scripts/pit_store.py route and ingest. Names are MCP servers the user installed (references/mcp-servers.md); edit to match yours. Order = preference; the next one is tried when one fails or is cooling down.",
+ "routes": {
+  "equity_us":   ["alpaca", "openbb", "daily_stock_analysis"],
+  "equity_ca":   ["questrade", "openbb-tmx", "ibkr"],
+  "crypto":      ["alpaca", "openbb"],
+  "options_us":  ["alpaca", "openbb"],
+  "macro":       ["openbb"],
+  "prediction":  ["prediction-markets"]
+ }}
