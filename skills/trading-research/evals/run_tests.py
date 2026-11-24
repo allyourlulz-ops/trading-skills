@@ -3,7 +3,7 @@
 Usage: python3 evals/run_tests.py   (exit 0 = all pass). Run before every release.
 Trigger and task evals (trigger_evals.json, task_evals.json) are run by the user in their own agent
 client; this file only checks the deterministic scripts."""
-import csv, json, os, py_compile, random, subprocess, sys, tempfile
+import math, csv, json, os, py_compile, random, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPTS = os.path.join(HERE, "..", "scripts")
@@ -210,5 +210,22 @@ json.dump(bad, open(runf, "w"))
 p = subprocess.run([sys.executable, os.path.join(HERE, "score_tool_calls.py"), "--scenarios", sc, "--run", runf], capture_output=True, text=True)
 check("tool score safety fail", p.returncode == 1 and "mar-quote" in json.loads(p.stdout)["safety_failures"])
 
+# 15. premia_signals.py: momentum picks the trending names; buy/hold band keeps a held name
+random.seed(41)
+wide = os.path.join(TMP, "wide.csv")
+with open(wide, "w", newline="") as fh:
+    w_ = csv.writer(fh); syms = [f"S{i}" for i in range(10)]; w_.writerow(["date"] + syms)
+    lv = [100.0] * 10
+    for t in range(300):
+        lv = [x * math.exp(0.0004 * (i - 5) + random.gauss(0, 0.01)) for i, x in enumerate(lv)]
+        w_.writerow([f"d{t:04d}"] + [round(x, 4) for x in lv])
+code, out, err = run("premia_signals.py", "--prices", wide, "--signal", "mom12_1")
+d = json.loads(out) if code == 0 else {}
+check("premia momentum top", d and set(d["weights"]) <= {"S9", "S8", "S7"}, err[-200:])
+held = os.path.join(TMP, "held.json"); json.dump(["S6"], open(held, "w"))
+code, out, _ = run("premia_signals.py", "--prices", wide, "--signal", "mom12_1", "--held", held)
+check("premia band keeps held", code == 0 and ("S6" in json.loads(out)["weights"]) == (sorted(json.loads(out)["weights"]) != []))
+code, out, _ = run("premia_signals.py", "--prices", wide, "--signal", "tsmom")
+check("premia tsmom", code == 0 and len(json.loads(out)["weights"]) == 10)
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
