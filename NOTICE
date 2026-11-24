@@ -35,3 +35,5 @@ v1.14.0 (2026-11-24) additions, all own implementations, nothing copied:
 - KTD-Fin, Zhu et al., "From Knowing to Doing: A Memory-Controlled Benchmark for LLM Trading Agents on Stock Markets", arXiv 2605.28359 (2026): Barra-style attribution (scripts/attribution.py) and four-level masking (scripts/mask.py), methods from the paper.
 - FinMCP-Bench, Zhu et al., arXiv 2603.24943 (2026): TP/TR/TF1/EMR metrics and scenario structure (evals/score_tool_calls.py, evals/tool_scenarios.json). Its dataset is CC BY-NC-SA 4.0 and is not included; the scenarios here are original.
 - HKUDS/AI-Trader: live data pipeline pattern (routing, fallback, cooldown, merged store, anti-look-ahead reads) in scripts/pit_store.py. The repository has no licence file, so no code was used.
+
+v1.15.0 (2026-11-24): references/documented-edges.md quotes published results (figures cited, not reproduced code) from Frazzini, Israel and Moskowitz (AQR, 2012); Novy-Marx and Velikov (RFS, 2016); Hurst, Ooi and Pedersen (JPM, 2017); McLean and Pontiff (JF, 2016); Chen and Velikov (2019). scripts/premia_signals.py is own code implementing the published signal definitions.
