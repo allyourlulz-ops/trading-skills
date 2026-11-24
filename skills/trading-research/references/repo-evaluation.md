@@ -82,3 +82,9 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | finance-expert (money-systems skill; author and repo not given) | unknown | 4 | Money invariants for the bot ledger | Strong on ledgers, idempotency, reconciliation and labelling. Its harnesses (audit_ledger.py, money_lint.py) were not provided, so nothing was copied. Its "automation never approves" rule (M11) is why mandates are signed by the user, capped and expiring |
 | Questrade MCP (official) | proprietary hosted | 4 | Canadian broker data and orders | Every change needs Push Approval on the user's phone |
 | openbb-tmx | OpenBB (AGPL-3.0 platform) | 4 | TSX/TSXV data | Unofficial TMX connector, no key |
+| arhancanli/canli-mcp | MIT | 3.5 | Optional cross-check for deflated Sharpe/PBO; filings and options data | Broad (hundreds of tools), new, one maintainer; nothing copied |
+| bcosm/backtester-mcp | Apache-2.0 | 3.5 | Optional local validation pipeline | Small project; nothing copied |
+| atilaahmettaner/tradingview-mcp | MIT | 3.5 | Screeners and walk-forward verdict, self-hosted | Hosted tier is a paid outside platform: not used |
+| YichengYang-Ethan/oracle3-prediction-market-agent | Apache-2.0 | 3.5 | Prediction-market paper ledger | Trading engine not used |
+| jackson-cmd/risk-aware-trading-agents (rta-bench-1) | MIT | 4 | Point-in-time news design, seed spread, beta-not-alpha checks; benchmark for bots | Headlines licensed and not shipped; ideas only, nothing copied |
+| Anthropic and agentskills.io skill guidance, Snyk agent-scan docs | docs | 5 | Hub-and-routing SKILL.md, third-person description, trigger and task evals, W011 phrasing | Guidance only |
