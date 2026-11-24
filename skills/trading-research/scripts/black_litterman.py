@@ -15,6 +15,11 @@ Inputs
   --mcap    optional JSON {"AAPL":3.4e12,...}; default equal weight prior
 Usage: black_litterman.py --prices px.csv --views views.json [--mcap caps.json]
        [--tau 0.05] [--delta 2.5] [--scale 0.5] [--periods 252] [--long-only] [--max-weight 0.25]
+       [--neutral] [--ridge 1e-4]
+  --neutral  dollar-neutral max-Sharpe weights from the posterior E (sum w = 0, sum |w| = 1):
+             w ~ C^-1 E - C^-1 1 (1'C^-1 E)/(1'C^-1 1)  (Kakushadze & Serur, 151 Trading Strategies, 3.18).
+             Needs shorting, so not with --long-only. --max-weight then scales the whole book down
+             (the rest stays cash) so neutrality holds. --ridge adds ridge x I to C before inverting.
 Prints JSON: prior and posterior returns, weights, change vs market. Feed each resulting
 order through risk_check.py; these weights are a target, not an order.
 """
@@ -72,7 +77,11 @@ def main():
     ap.add_argument("--periods", type=int, default=252)
     ap.add_argument("--long-only", action="store_true")
     ap.add_argument("--max-weight", type=float, default=1.0)
+    ap.add_argument("--neutral", action="store_true", help="dollar-neutral long/short weights")
+    ap.add_argument("--ridge", type=float, default=0.0, help="ridge added to the covariance diagonal")
     a = ap.parse_args()
+    if a.neutral and a.long_only:
+        raise SystemExit("--neutral needs shorts; drop --long-only")
 
     with open(a.prices, newline="") as fh:
         rows = list(csv.DictReader(fh))
@@ -124,13 +133,30 @@ def main():
     A = add(tS_inv, mm(mm(Pt, Om_inv), P))
     b = [x + y for x, y in zip(mv(tS_inv, pi), mv(mm(Pt, Om_inv), Q))]
     post = mv(inv(A), b)
-    w = mv(inv(scal(a.delta, S)), post)
-    raw = w[:]
-    if a.long_only:
+    if a.neutral:
+        C = [[S[i][j] + (a.ridge if i == j else 0.0) for j in range(n)] for i in range(n)]
+        Ci = inv(C)
+        ca, cb = mv(Ci, post), mv(Ci, [1.0] * n)
+        if abs(sum(cb)) < 1e-18:
+            raise SystemExit("cannot neutralise: 1'C^-1 1 is zero")
+        w = [x - y * sum(ca) / sum(cb) for x, y in zip(ca, cb)]
+        raw = w[:]
+        g = sum(abs(x) for x in w) or 1.0
+        w = [x / g for x in w]
+        top = max(abs(x) for x in w)
+        if top > a.max_weight:
+            w = [x * a.max_weight / top for x in w]
+    else:
+        w = mv(inv(scal(a.delta, S)), post)
+        raw = w[:]
+    if a.neutral:
+        pass
+    elif a.long_only:
         w = [max(0.0, x) for x in w]
-    tot = sum(abs(x) for x in w) or 1.0
-    w = [x / tot for x in w]  # gross exposure 1
-    for _ in range(50):  # cap single names, redistribute the excess pro rata
+    if not a.neutral:
+        tot = sum(abs(x) for x in w) or 1.0
+        w = [x / tot for x in w]  # gross exposure 1
+    for _ in range(0 if a.neutral else 50):  # cap single names, redistribute the excess pro rata
         over = [i for i in range(n) if abs(w[i]) > a.max_weight + 1e-12]
         if not over:
             break
@@ -152,9 +178,12 @@ def main():
         unconstrained_weight={t: r4(x) for t, x in zip(tick, raw)},
         target_weight={t: r4(x) for t, x in zip(tick, w)},
         change_vs_market={t: r4(x - m) for t, x, m in zip(tick, w, w_mkt)},
+        mode="dollar_neutral" if a.neutral else ("long_only" if a.long_only else "long_short"),
+        net_exposure=r4(sum(w)), gross_exposure=r4(sum(abs(x) for x in w)),
         notes=["Target weights, not orders: each trade still goes through risk_check.py and the user's yes.",
                "Low-confidence views barely move the prior; that is intended.",
-               "Covariance is sample covariance over the whole file; use 1-3 years of daily bars."]), indent=2))
+               "Covariance is sample covariance over the whole file; use 1-3 years of daily bars."]
+              + (["Dollar-neutral: a market move barely touches the book, but in a crash correlations go to 1 and the spread can vanish. Add shorting costs (borrow, or perp funding) and daily turnover fees."] if a.neutral else [])), indent=2))
 
 
 if __name__ == "__main__":
