@@ -39,6 +39,9 @@ The size column multiplies the size from position_size.py; risk clamps may only 
 ## 4. The LLM's role in a bot
 - The model proposes a view; code sizes it. In mandate mode the model may move conviction by at most ±0.15, or veto a buy. It cannot create a trade, add a symbol or change a limit.
 - Every prompt and reply goes in the journal with the decision it touched.
+- **Decision schema.** Each bot call returns exactly one of `hold`, `open_long`, `open_short`, `close`, `reduce`, with conviction (-1..1), confidence (0-100), and for any open an exit plan: stop price, target price and an invalidation condition in words ("close if the daily closes back under 182.40"). A missing exit plan is `REVIEW`, never an order. Size and leverage are never the model's to choose; code computes them (rule 4).
+- **Hold is a valid answer, and the default.** Say so in the prompt. In Alpha Arena season 1.5 the winner, Grok 4.20 (+12.11% across four contests), made 158 trades in the contest where models saw each other's results, while Qwen made 1,418 under the same prompt; across the season only 6 of 32 accounts finished positive and Nof1's founder said models flipped positions too often and sized poorly (briefs.co, 7 Nov 2026). Turnover caps live in risk-limits.json (`max_trades_per_day`, `max_orders_per_day`); a bot that hits them every day is churning, so review it with `journal_stats.py`.
+- **Do not copy a winner's model.** Season 1 winner Qwen 3 Max (+22.31%) lost all four season 1.5 contests (-6.79%, -20.24%, -41.37%, -82.06%), and Nof1 published no prompts or significance tests. Judge any bot by `monkey_test.py` and `attribution.py`, not by a leaderboard rank.
 
 ## 5. Testing any strategy (scripts/lookahead_check.py)
 - Run `lookahead_check.py --prices closes.csv --cmd "python3 strat.py --prices {prices}"`. It replaces every bar after several cut dates with a random path and checks that no decision on or before a cut changes. LEAK blocks promotion.
