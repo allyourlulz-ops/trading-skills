@@ -21,7 +21,7 @@ The user signs one mandate instead of saying yes to every order. `scripts/mandat
 
 **Signing.** Copy assets/mandate.example.json to assets/mandate.json and fill it with the user, field by field: strategies (only ones that passed the permutation gates and 20+ paper sessions), symbols, asset classes, per-order and daily notional caps, orders per day, open positions, daily loss, total loss, losing-streak stop, and an expiry of at most 30 days. Mode starts as `paper`. `live` needs `live_ack` set to the exact sentence the script names, typed by the user, and a live account they switched to themselves. The agent never edits a mandate to widen it; widening is a new mandate the user signs.
 
-**Bot loop (one order at a time):** data via MCP → strategy signal → order JSON with `strategy`, limit price and stop → `risk_check.py` (with `--context`) → `mandate.py check` →
+**Bot loop (one order at a time):** data via MCP → strategy signal → order JSON with `strategy`, limit price and stop → `risk_check.py` (with `--context` and `--bar`) → `mandate.py check` →
 - AUTO_OK: place it as a bracket/limit order with the stop attached, `mandate.py record` it, then notify the user with the fill, the reason and the day's P&L.
 - NEEDS_YES: ask for the normal explicit per-order yes, with the reasons.
 - HALT: place nothing new. The script writes a HALT file; tell the user why. Only the user deletes it.
@@ -36,7 +36,7 @@ After each close, `record --pnl` so the loss limits and streak stop see it. `sta
 - Every order carries a `client_order_id` derived from the action (strategy, symbol, signal bar). Send it to the broker too; a retry with the same id must never fill twice. `mandate.py check` refuses a reused id.
 - The mandate ledger is append-only. Correct a row by recording a reversal (`record --reverses <id>`), never by editing the file.
 - Reconcile the ledger against the broker's own fills every session close: `mandate.py reconcile --broker fills.json`. Any break (a fill the ledger never saw, a quantity or price mismatch, a recorded order that never filled) writes HALT, because the loss limits are only as true as the ledger.
-- Fees, FX costs and taxes are separate lines, never netted into P&L silently.
+- Fees, FX costs, taxes and perpetual-futures funding are separate lines, never netted into P&L silently.
 - Every number shown to the user is labelled: period, currency, realised or unrealised, gross or net of fees, source and as-of time.
 
 ## Alpaca client permissions
@@ -59,6 +59,13 @@ Scale by at most +50% at a time, re-reviewing weekly. One good week is a sample,
 
 ## Regulatory note
 Pattern-day-trader rules and margin requirements change; check the broker's current account config (`get_account_config`) rather than assuming a rule.
+
+## Live-bar gates (risk_check.py --bar)
+Pass the last bar the signal was computed on: `{"timeframe":"1h","last_bar_open":"2026-11-23T14:00:00+00:00","closed":true}`, with a timezone offset.
+- **Unfinished bar:** `closed` not true → BLOCK. Exchanges return the still-forming bar as the last row; drop it before computing the signal, or the bot trades on data the backtest never saw.
+- **Frozen feed:** last bar closed more than `timing.max_stale_bars` bars ago (default 3) → BLOCK. An exchange or MCP feed that stops updating looks like a flat market.
+- **Clock mismatch:** a bar marked closed that has not closed yet → BLOCK.
+Missing `--bar` is a warning, not a block, for one-off orders; bots always pass it. Idea from @sopersone's bot skeleton (X, 2026-10-26); own code.
 
 ## Event-timing gates (risk_check.py --context)
 Before a new entry, pull a small context from the data MCP server (earnings calendar, last close history, VIX, GLD/TLT/UUP 5-day change) into `context.json` and pass `--context`. Thresholds live under `timing` in assets/risk-limits.json.
