@@ -100,5 +100,42 @@ check("lookahead honest rule passes", code == 0 and json.loads(out)["verdict"] =
 code, out, _ = run("lookahead_check.py", "--prices", px, "--cmd", f"{sys.executable} {cheat} {{prices}}")
 check("lookahead cheating rule leaks", code == 2 and json.loads(out)["verdict"] == "LEAK")
 
+# 7. lookahead_check.py: a two-sided (centred) smoother, like an HP filter run over the whole history, leaks
+centred = os.path.join(TMP, "centred.py")
+open(centred, "w").write("import csv,sys\nr=list(csv.reader(open(sys.argv[1])))[1:]\nfor i in range(10,len(r)-10):\n    m=sum(float(x[1]) for x in r[i-10:i+11])/21\n    print(r[i][0]+',AAA,'+('buy' if float(r[i][1])>m else 'flat'))\n")
+code, out, _ = run("lookahead_check.py", "--prices", px, "--cmd", f"{sys.executable} {centred} {{prices}}")
+check("lookahead two-sided smoother leaks", code == 2 and json.loads(out)["verdict"] == "LEAK")
+
+# 8. risk_check.py --bar: forming bar and frozen feed block, a fresh closed bar does not
+order = os.path.join(TMP, "order.json")
+json.dump({"symbol": "AAA", "side": "buy", "qty": 5, "type": "limit", "limit_price": 190.0, "stop_price": 186.0,
+           "target_price": 198.0, "asset_class": "equity"}, open(order, "w"))
+def bar_blocks(bar, now):
+    f = os.path.join(TMP, "bar.json"); json.dump(bar, open(f, "w"))
+    _, out, _ = run("risk_check.py", "--order", order, "--bar", f, "--now", now)
+    return [b for b in json.loads(out)["blocks"] if "bar" in b or "stale" in b]
+now = "2026-11-23T15:20:00+00:00"
+check("bar fresh passes", bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T14:00:00+00:00", "closed": True}, now) == [])
+check("bar forming blocks", any("forming" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T15:00:00+00:00", "closed": False}, now)))
+check("bar stale blocks", any("stale" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T10:00:00+00:00", "closed": True}, now)))
+
+# 9. black_litterman.py --neutral: net exposure 0, gross 1, cap respected
+bl = os.path.join(TMP, "bl.csv"); random.seed(5); ps = [100.0] * 4
+with open(bl, "w", newline="") as fh:
+    w = csv.writer(fh); w.writerow(["date", "A", "B", "C", "D"])
+    for i in range(300):
+        ps = [x * _m.exp(random.gauss(0, 0.01 + 0.004 * j)) for j, x in enumerate(ps)]; w.writerow([i] + [round(x, 4) for x in ps])
+views = os.path.join(TMP, "views.json")
+json.dump([{"ticker": "A", "conviction": 0.6, "confidence": 70}, {"long": "B", "short": "D", "conviction": 0.4, "confidence": 50}], open(views, "w"))
+code, out, err = run("black_litterman.py", "--prices", bl, "--views", views, "--neutral", "--ridge", "1e-4")
+d = json.loads(out) if code == 0 else {}
+check("bl neutral net zero", code == 0 and abs(d["net_exposure"]) < 1e-3, err[-200:])
+check("bl neutral gross one", d and abs(d["gross_exposure"] - 1) < 1e-3)
+code, out, _ = run("black_litterman.py", "--prices", bl, "--views", views, "--neutral", "--max-weight", "0.2")
+d = json.loads(out) if code == 0 else {}
+check("bl neutral cap keeps neutrality", d and max(abs(x) for x in d["target_weight"].values()) <= 0.2001 and abs(d["net_exposure"]) < 1e-3)
+code, _, _ = run("black_litterman.py", "--prices", bl, "--views", views, "--neutral", "--long-only")
+check("bl neutral refuses long-only", code != 0)
+
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
