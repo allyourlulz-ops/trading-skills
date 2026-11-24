@@ -51,7 +51,7 @@ Prefer limit or bracket orders with the stop attached.
 Token scopes by risk: read / write / backtest / notify / trade. Every mutating call carries a caller-generated `idempotency_key`. Require explicit `confirm_order=true`; live needs a separate `confirm_live_trading=true` plus a server flag. Keep an emergency stop that cancels agent orders and revokes trade tokens.
 
 ## Staged rollout (never skip a stage)
-1. Paper: every role runs, the executor only logs. Advance when the funnel works and logs are clean.
+1. Paper: every role runs, the executor only logs. Advance when the funnel works, logs are clean, and `monkey_test.py` and `attribution.py` have been run on the paper positions and shown to the user. ANTI_EDGE blocks advancing; LUCK or BETA_OR_STYLE must be said plainly ("this result can't be told from chance" / "this is market and style exposure"), and the user decides.
 2. Small live, every order approved by hand. Advance only when net positive AFTER fees and slippage (paper fills hide both).
 3. Semi-auto: auto below a small size, ask above. Advance when the logs show zero broken rules.
 4. Unattended runs are out of scope for this skill (rule 7: nothing executes from a background task).
