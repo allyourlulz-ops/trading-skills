@@ -29,3 +29,9 @@ v1.12.0 (2026-11-24) additions, all own implementations, nothing copied:
 v1.13.0 (2026-11-24) additions, all own implementations, nothing copied:
 - @sopersone, "A Former WorldQuant Director Published 151 Strategies for Free. How to Automate Them With AI." (X, 2026-10-26): ideas for the unfinished-bar and stale-data gates, the two-sided filter warning and the funding cost line. The article's code has no licence and was not used.
 - Z. Kakushadze and J.A. Serur, 151 Trading Strategies (2018), SSRN 3247865, section 3.18: dollar-neutral max-Sharpe weight formula (method cited, text not copied).
+
+v1.14.0 (2026-11-24) additions, all own implementations, nothing copied:
+- Nof1 Alpha Arena seasons 1 and 1.5 (public results) and oaia.fun, "did grok 4.20 beat the monkeys?" (2026-11-10): coin-flip test method in scripts/monkey_test.py and the hold-is-valid and turnover lessons. No Nof1 prompts or oaia code used.
+- KTD-Fin, Zhu et al., "From Knowing to Doing: A Memory-Controlled Benchmark for LLM Trading Agents on Stock Markets", arXiv 2605.28359 (2026): Barra-style attribution (scripts/attribution.py) and four-level masking (scripts/mask.py), methods from the paper.
+- FinMCP-Bench, Zhu et al., arXiv 2603.24943 (2026): TP/TR/TF1/EMR metrics and scenario structure (evals/score_tool_calls.py, evals/tool_scenarios.json). Its dataset is CC BY-NC-SA 4.0 and is not included; the scenarios here are original.
+- HKUDS/AI-Trader: live data pipeline pattern (routing, fallback, cooldown, merged store, anti-look-ahead reads) in scripts/pit_store.py. The repository has no licence file, so no code was used.
