@@ -104,5 +104,24 @@ Report all of:
 - Reproducibility log: strategy version/hash, symbols, dates, price basis (adjusted?), costs, seed, data snapshot.
 State plainly: "Backtests overstate live results."
 
+## Overfitting gates for a family of variants (run scripts/overfit.py)
+Read this section when more than one variant, parameter set or rule was tried. Pass the whole family, losers included.
+- `overfit.py pbo --returns variants.csv --blocks 10`: probability of backtest overfitting (combinatorially symmetric cross-validation). PBO <= 0.20 PASS, <= 0.50 CAUTION, else FAIL. A negative `is_to_oos_slope` means the better a variant looked in sample, the worse it did out of sample.
+- `overfit.py dsr --returns variants.csv`: deflated Sharpe for the in-sample best (or `--pick NAME`), with the expected best Sharpe from luck alone for this many trials. Promote only at DSR >= 0.95.
+- `overfit.py cpcv --n ROWS --groups 6 --test-groups 2 --horizon H --embargo 0.01`: combinatorial purged cross-validation folds. Train rows whose label window (`--horizon` bars) overlaps a test block are purged, and an embargo follows each test block. Use for any model that is fitted, not just thresholded.
+- A variant is promotable only when it clears the hard gates, the permutation gates, PBO and DSR, and still beats buy-and-hold after costs. Methods: Bailey, Borwein, Lopez de Prado and Zhu (2014); Bailey and Lopez de Prado (2014); Lopez de Prado (2018). Own stdlib implementation.
+- Optional local cross-checks (user installs, see mcp-servers.md): canli-mcp and backtester-mcp report deflated Sharpe and PBO too. When they disagree with overfit.py by more than rounding, show both and treat the result as unverified.
+
+## Point-in-time and leakage checklist
+Read before trusting any historical result, and before any result that uses news, fundamentals or an LLM's judgement.
+1. **News timestamps to the minute.** Join each headline at the minute it was published and trade at the next bar's open. A headline published after the close is not tradable at that close (rta-bench-1 design, jackson-cmd/risk-aware-trading-agents, MIT).
+2. **Model memory.** An LLM may remember what happened after its training data. Run the period blind (tickers and dates masked, references/committee.md) and score periods before and after the model's training cutoff separately. A result that only works before the cutoff is memory, not skill.
+3. **Seeds.** One LLM-agent run is an anecdote: the rta-bench-1 paper found two runs differing only by seed ended 5.2 points apart on average. Use at least 3 seeds and report the spread.
+4. **Beta, not alpha.** Report return minus the benchmark's and the regression beta; most LLM agents in that study earned market beta.
+5. **Survivorship.** The universe is what existed on each date, delisted names included.
+6. **Restatements.** Fundamentals as first filed, not as later restated (SEC EDGAR filing dates; SEDAR+ in Canada).
+7. **Corporate actions.** Split- and dividend-adjusted prices for returns, unadjusted for any price-level rule.
+8. **Fills.** Next-bar entry, spread plus fees plus slippage, and size capped by recent volume.
+
 ## Fixed-seed session replay (day-trader-skill Time Machine)
 For an intraday plan: build a pool of the last 60 days of 5-min sessions as OHLC ratios to prior close, resample same-time-of-day bars (±2), stop checked before target (a bar touching both = stop), seed 19, 10,000 paths. Refuse with <20 sessions. Verdict vs break-even win rate 1/(1+R): within 5 pts "coin flip", 5–15 "leans", >15 "strongly".
