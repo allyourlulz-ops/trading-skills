@@ -5,7 +5,7 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.14.0"
+  version: "1.15.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill, risk-aware-trading-agents (rta-bench-1), FinSkillBench, Bailey and Lopez de Prado (PBO, DSR, CPCV), KTD-Fin, FinMCP-Bench, AI-Trader, Alpha Arena"
 ---
 
@@ -31,6 +31,7 @@ Classify the request before doing any expensive work:
 | Situation | Read / run |
 |---|---|
 | Backtest looks too good, or many variants were tried | references/backtesting.md (overfitting gates) → `scripts/overfit.py pbo` and `dsr`, `scripts/permutation_test.py` |
+| Which strategies have published evidence after costs? | references/documented-edges.md; `scripts/premia_signals.py` (12-1 momentum, low volatility, trend, buy/hold band) |
 | Good returns: real edge, or market and style? | `scripts/monkey_test.py` (coin-flip test), `scripts/attribution.py` (market/style/selection); references/backtesting.md (edge or exposure) |
 | An LLM may remember the period it is tested on | `scripts/mask.py` (blind tickers and dates); references/backtesting.md |
 | Bot or repeated run needs prices | `scripts/pit_store.py` (source fallback, point-in-time store); references/data-layer.md (live data pipeline) |
