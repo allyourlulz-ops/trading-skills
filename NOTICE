@@ -18,3 +18,10 @@ This skill adapts ideas and condensed prompt wording from:
 - Canadian tax rules in scripts/ca_tax_check.py follow CRA guide T4037 and Income Tax Act s.54 / s.251.1 as published by the CRA; original code
 - freqtrade (GPL-3.0): referenced via its CLI only; no freqtrade code is included.
 No code from these projects is copied except short illustrative API examples.
+
+v1.12.0 (2026-11-24) additions, all own implementations, nothing copied:
+- jackson-cmd/risk-aware-trading-agents (MIT): regime table, cash floor, tranches, two-source news verification, LLM nudge cap, look-ahead cut test, point-in-time news idea. https://github.com/jackson-cmd/risk-aware-trading-agents
+- FinSkillBench, Bek, Bok and Sun, "Knowledge or Calculator? Decomposing the Skill Premium in Verifiable Financial Agent Workflows", arXiv 2610.03564 (2026): numbers-through-scripts and canonical-mandate lessons (cited, not copied).
+- Bailey, Borwein, Lopez de Prado and Zhu (2014), Bailey and Lopez de Prado (2014), Lopez de Prado (2018): PBO, deflated Sharpe, purged and combinatorial purged cross-validation (methods from papers).
+- Agent Skills guidance: Anthropic skill authoring best practices, agentskills.io, anthropics/skills skill-creator (trigger-eval format); Snyk agent-scan issue codes.
+- Listed MCP servers (user-installed, not bundled): arhancanli/canli-mcp (MIT), bcosm/backtester-mcp (Apache-2.0), atilaahmettaner/tradingview-mcp (MIT), YichengYang-Ethan/oracle3-prediction-market-agent (Apache-2.0).
