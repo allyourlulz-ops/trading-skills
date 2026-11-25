@@ -1,0 +1,42 @@
+{
+ "strategy": "golden_lookahead",
+ "periods_per_year": 252,
+ "timeframe": "1d",
+ "gross_equity": "fixtures/gross.csv",
+ "net_equity": "fixtures/net.csv",
+ "turnover": "fixtures/turnover.csv",
+ "costs": {
+  "fee_bps": 1,
+  "slippage_bps": 4
+ },
+ "benchmark": "fixtures/bench.csv",
+ "trades": "fixtures/trades_lookahead.csv",
+ "trials": 5,
+ "universe": {
+  "single_instrument": true
+ },
+ "walk_forward": {
+  "folds": [
+   {
+    "train_start": "2022-01-03",
+    "train_end": "2022-12-20",
+    "test_start": "2022-12-21",
+    "test_end": "2023-08-11"
+   },
+   {
+    "train_start": "2022-01-03",
+    "train_end": "2023-08-11",
+    "test_start": "2023-08-14",
+    "test_end": "2024-04-03"
+   },
+   {
+    "train_start": "2022-01-03",
+    "train_end": "2024-04-03",
+    "test_start": "2024-04-04",
+    "test_end": "2024-11-25"
+   }
+  ]
+ },
+ "regimes": "fixtures/regimes.csv",
+ "llm_in_loop": false
+}
