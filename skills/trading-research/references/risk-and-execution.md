@@ -3,13 +3,13 @@ Orders, mandates and broker permissions live in the separate `trading-execution`
 From day-trader-skill (MIT), ai-hedge-fund risk/limits (MIT), QuantDinger agent gating (Apache-2.0), alpaca-mcp-server (MIT).
 
 ## Default limits (assets/risk-limits.json)
-budget 5000, cash_buffer_pct 10, max_position_pct 25, max_order_usd 4000, max_loss_per_trade_usd 50, max_daily_loss_usd 150, max_trades_per_day 3, min_reward_risk 1.5, require_stop true, no_entries_before 09:45 ET, no_entries_after 15:30 ET, flat_by 15:55 ET (day trades only), paper true, allow_options/margin/short false. The user edits these; the agent never loosens them on its own.
+budget 5000, cash_buffer_pct 10, max_position_pct 25, max_order_usd 4000, max_loss_per_trade_usd 50, max_daily_loss_usd 150, max_trades_per_day 3, min_reward_risk 1.5, require_stop true, no_entries_before 09:45 ET, no_entries_after 15:30 ET, flat_by 15:55 ET (day trades only), paper true, allow_margin false. In this research skill allow_short and allow_options are true so proposals and backtests can use short legs and defined-risk options; trading-execution keeps both false until the user turns them on and a signed mandate names them. max_adv_pct 1 for single names, 5 for index ETFs and large caps (max_adv_pct_liquid). Borrow needs a locate and a fee at or under 1,500 bps a year. The user edits these; the agent never loosens them on its own.
 
 ## Sizing (scripts/position_size.py)
 `shares = floor(min(max_loss / (entry − stop), max_order_usd / entry, budget·max_position_pct / entry))`. Risk for a market order is measured from the higher of planned entry and a fresh quote <15 min old.
 
 ## Risk clamps (only ever shrink; removed exposure goes to cash)
-per-name cap → net cap → sector cap → beta cap → volatility cap → drawdown halving (at −10%) → gross cap; stop-out at −20% drawdown; ADV cap (order ≤ 5% of 20-day ADV).
+per-name cap → net cap → sector cap → beta cap → volatility cap → drawdown halving (at −10%) → gross cap; stop-out at −20% drawdown; ADV cap (order ≤ 1% of 20-day ADV for single names, 5% for liquid ETFs; larger orders part-fill over days, as `premia_signals.py --volumes` simulates).
 
 ## Money hygiene (from finance-expert's money invariants)
 - An amount is a value plus a currency; never add or compare across currencies without a recorded rate, its source and its date.
@@ -17,7 +17,11 @@ per-name cap → net cap → sector cap → beta cap → volatility cap → draw
 - Fees, FX costs, taxes and perpetual-futures funding are separate lines, never netted into P&L silently.
 - Every number shown to the user is labelled: period, currency, realised or unrealised, gross or net of fees, source and as-of time.
 
+## Per-strategy kill switch (scripts/strategy_health.py)
+The account stop at −20% does not retire a dead strategy. Each strategy has its own limits (`strategy_kill` in risk-limits.json): RETIRE at a 15% drawdown, 90 trading days under water, or average slippage over 25 bps; WATCH under 63 days of record or at under half the expected Sharpe. A retired strategy goes back to research and needs a fresh pipeline verdict.
+
 ## Staged rollout (never skip a stage)
+0. Paper probe (PAPER_PROBE from pipeline.py): paper only, a quarter of normal size, to collect forward data. Review after 63 trading days with strategy_health.py and re-run the pipeline on backtest plus paper.
 1. Paper: every role runs, the executor only logs. Advance when the funnel works, logs are clean, and `monkey_test.py` and `attribution.py` have been run on the paper positions and shown to the user. ANTI_EDGE blocks advancing; LUCK or BETA_OR_STYLE must be said plainly ("this result can't be told from chance" / "this is market and style exposure"), and the user decides.
 2. Small live, every order approved by hand. Advance only when net positive AFTER fees and slippage (paper fills hide both).
 3. Semi-auto: auto below a small size, ask above. Advance when the logs show zero broken rules.
