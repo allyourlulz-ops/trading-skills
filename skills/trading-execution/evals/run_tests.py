@@ -16,7 +16,7 @@ for f in sorted(os.listdir(SCRIPTS)):
             print(("PASS " if cond else "FAIL ") + name); fails += [] if cond else [name]
 other = os.path.join(HERE, "..", "..", "trading-research", "scripts")
 if os.path.isdir(other):
-    for f in ("risk_check.py", "position_size.py", "strategy_health.py"):
+    for f in ("risk_check.py", "position_size.py", "strategy_health.py", "gate.py", "data_contract.py", "mcp_lock.py"):
         same = filecmp.cmp(os.path.join(SCRIPTS, f), os.path.join(other, f), shallow=False)
         print(("PASS " if same else "FAIL ") + f"{f} matches trading-research"); fails += [] if same else [f]
 # probe mandates: paper only, quarter-size orders
@@ -24,15 +24,26 @@ import json
 m = json.load(open(os.path.join(HERE, "..", "assets", "mandate.example.json")))
 m.update({"probe": True, "granted_on": "2026-11-20", "expires_on": "2026-12-15"})
 mp, op, rp = (os.path.join(TMP, x) for x in ("m.json", "o.json", "r.json"))
-json.dump({"verdict": "PASS"}, open(rp, "w"))
+sys.path.insert(0, SCRIPTS)
+from gate import fingerprint, issue
+GD = os.path.join(TMP, "gate")
 def mcheck(order, **kw):
+    mode = kw.get("mode", m.get("mode", "paper"))
+    tok = issue("PASS", fingerprint(order), mode, os.path.join(HERE, "..", "assets", "risk-limits.json"), d=GD,
+                now="2026-11-24T10:00:00")
+    json.dump({"verdict": "pass", "nonce": tok}, open(rp, "w"))
     json.dump(dict(m, **kw), open(mp, "w")); json.dump(order, open(op, "w"))
     p = subprocess.run([sys.executable, "mandate.py", "check", "--order", op, "--risk", rp, "--mandate", mp,
-                        "--ledger", os.path.join(TMP, "l.jsonl"), "--now", "2026-11-24T10:00:00"], cwd=SCRIPTS, capture_output=True, text=True)
+                        "--ledger", os.path.join(TMP, "l.jsonl"), "--now", "2026-11-24T10:00:00", "--gate-dir", GD], cwd=SCRIPTS, capture_output=True, text=True)
     return json.loads(p.stdout)
 base = {"symbol": "SPY", "side": "buy", "qty": 1, "limit_price": 200, "stop_price": 190, "strategy": "ema9-pullback-v2", "client_order_id": "c1", "paper": True}
 for name, cond in (("probe small order AUTO_OK", mcheck(base)["verdict"] == "AUTO_OK"),
                    ("probe order over quarter size NEEDS_YES", mcheck(dict(base, qty=2))["verdict"] == "NEEDS_YES"),
                    ("probe live mandate HALT", mcheck(base, mode="live")["verdict"] == "HALT")):
     print(("PASS " if cond else "FAIL ") + name); fails += [] if cond else [name]
+# golden fixtures: position_size, risk_check, gate, preview, data_contract, mcp_lock (failure paths included)
+g = subprocess.run([sys.executable, os.path.join(HERE, "golden", "run_golden.py")], capture_output=True, text=True)
+print(g.stdout.strip().splitlines()[-1] if g.stdout.strip() else g.stderr[-300:])
+if g.returncode:
+    print(g.stdout); fails.append("golden")
 print(f"\n{len(fails)} failed" if fails else "\nall passed"); sys.exit(1 if fails else 0)
