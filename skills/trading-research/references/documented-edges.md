@@ -17,8 +17,9 @@ These are the strongest public claims of positive expectancy after costs we coul
 - No live retail track record is included here. Every figure above is a factor or simulated return, not an account anyone can audit. Treat a seller's "live track record" as unverified until it comes with broker statements or on-chain transactions and passes `monkey_test.py` and `attribution.py`.
 
 ## How to use them
-1. Pick a premium and its signal: `premia_signals.py --signal mom12_1|lowvol|tsmom` on MCP closes. Use the universe as it stood on each date.
+1. Pick a premium and its signal: `premia_signals.py --signal mom12_1|lowvol|tsmom` on MCP closes, `--long-short` for the cross-sectional short leg (needs a borrow file), `--tranches 3` to stagger rebalance days. Use the universe as it stood on each date (`universe.py`, at least 100 names, delisted included).
 2. Keep turnover low: the default buy/hold band enters at the top 20% and holds until the name falls below the top 40%. Monthly rebalance only.
-3. Backtest net of your own costs (commission, spread, borrow, funding as separate lines) through `validate_backtest.py`, `permutation_test.py` and `overfit.py`. Then paper trade (risk-and-execution.md staged rollout).
-4. Expect less than the paper: plan on about half the published premium (the 58% post-publication fall) and long losing stretches. Momentum has crashed in sharp rebounds; value lagged for years at a time.
+3. Backtest net of your own costs (commission, spread, impact, borrow, funding as separate lines) through `pipeline.py`. Then paper trade (risk-and-execution.md staged rollout).
+4. Expect less than the paper: plan on about half the published premium (the 58% post-publication fall) and long losing stretches. The pipeline does not ask a premium to beat the index: it asks for a better Sharpe than the index and that a 30% sleeve improves the index's Sharpe and drawdown, and only a directional sleeve must also match the index's total return.
+4a. These are the most crowded trades there are (capacity $52bn to $190bn). A small book's real advantage is capacity: see small-capacity-edges.md. Momentum has crashed in sharp rebounds; value lagged for years at a time.
 5. Report returns with buy-and-hold beside them, and run `attribution.py`. A factor premium will show up as style, not selection alpha, which is the point: you are being paid for a known exposure.
