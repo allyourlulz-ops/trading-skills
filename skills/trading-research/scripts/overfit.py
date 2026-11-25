@@ -6,13 +6,15 @@ purged/embargoed and combinatorial purged cross-validation). No third-party code
 
 Usage:
   overfit.py pbo   --returns variants.csv [--blocks 10]
-  overfit.py dsr   --returns variants.csv [--pick NAME] [--periods 252]
+  overfit.py dsr   --returns variants.csv [--pick NAME] [--periods 252] [--trials auto|N] [--family F]
   overfit.py cpcv  --n 1000 [--groups 6] [--test-groups 2] [--horizon 5] [--embargo 0.01]
 variants.csv: first column date, then one column of per-period returns per variant (every variant
 you tried, including the losers; dropping them is what makes PBO lie).
 Prints JSON. Gates (references/backtesting.md): PBO <= 0.20 and DSR >= 0.95 to promote a variant.
 """
-import argparse, csv, itertools, json, math, statistics
+import argparse, csv, itertools, json, math, os, statistics, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from trial_ledger import resolve_trials
 from statistics import NormalDist
 
 ND = NormalDist()
@@ -79,10 +81,10 @@ def moments(x):
     return sk, ku
 
 
-def dsr(names, cols, pick, periods):
+def dsr(names, cols, pick, periods, trials=None):
     srs = [sharpe(c) for c in cols]
     j = names.index(pick) if pick else max(range(len(cols)), key=lambda k: srs[k])
-    x, sr, N, T = cols[j], srs[j], len(cols), len(cols[j])
+    x, sr, N, T = cols[j], srs[j], max(len(cols), trials or 0), len(cols[j])
     var = statistics.pvariance(srs)
     g = 0.5772156649
     sr0 = math.sqrt(var) * ((1 - g) * ND.inv_cdf(1 - 1 / N) + g * ND.inv_cdf(1 - 1 / (N * math.e))) if var > 0 else 0.0
@@ -138,6 +140,8 @@ def main():
     ap.add_argument("--test-groups", type=int, default=2)
     ap.add_argument("--horizon", type=int, default=5)
     ap.add_argument("--embargo", type=float, default=0.01)
+    ap.add_argument("--trials", default="auto", help="dsr: auto = max(columns, trial ledger count), or a number")
+    ap.add_argument("--family"); ap.add_argument("--ledger")
     a = ap.parse_args()
     if a.cmd == "cpcv":
         if not a.n:
@@ -147,7 +151,7 @@ def main():
         if not a.returns:
             raise SystemExit("--returns required")
         names, cols = load(a.returns)
-        out = pbo(names, cols, a.blocks) if a.cmd == "pbo" else dsr(names, cols, a.pick, a.periods)
+        out = pbo(names, cols, a.blocks) if a.cmd == "pbo" else dsr(names, cols, a.pick, a.periods, resolve_trials(a.trials, a.ledger, a.family)[0])
     print(json.dumps(out, indent=2))
 
 
