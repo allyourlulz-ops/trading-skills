@@ -1,82 +1,90 @@
 [
- {
-  "query": "can you run a bull vs bear on NVDA before earnings next week, I hold 40 shares",
-  "should_trigger": true
- },
- {
-  "query": "backtest a 20/50 SMA cross on SPY daily since 2015 and tell me if it beats buy and hold",
-  "should_trigger": true
- },
- {
-  "query": "i tested like 30 rsi thresholds on QQQ, which one is real and which ones are luck",
-  "should_trigger": true
- },
- {
-  "query": "new pump.fun token 7xKX... just launched, is it a rug?",
-  "should_trigger": true
- },
- {
-  "query": "size a position in SHOP.TO, entry 142, stop 136, account is 25k CAD",
-  "should_trigger": true
- },
- {
-  "query": "price a 95/90 put credit spread on AMD 30 days out, IV around 45%",
-  "should_trigger": true
- },
- {
-  "query": "rebalance my TFSA back to 60/40 XEQT/ZAG, here are my holdings",
-  "should_trigger": true
- },
- {
-  "query": "validate my momentum strategy on 5 ETFs net of costs and tell me if it is ready for paper trading",
-  "should_trigger": true
- },
- {
-  "query": "polymarket has the fed cut at 38c, I think it's 50%, how much of $500 should I bet",
-  "should_trigger": true
- },
- {
-  "query": "did I trigger a superficial loss selling RY.TO in my taxable and buying it in my RRSP?",
-  "should_trigger": true
- },
- {
-  "query": "what's the difference between a stock and a bond",
-  "should_trigger": false
- },
- {
-  "query": "help me make a monthly grocery budget spreadsheet",
-  "should_trigger": false
- },
- {
-  "query": "file my 2025 taxes in TurboTax",
-  "should_trigger": false
- },
- {
-  "query": "what does P/E ratio mean",
-  "should_trigger": false
- },
- {
-  "query": "write a python function that sorts a list of dicts by date",
-  "should_trigger": false
- },
- {
-  "query": "summarize this article about the history of the dutch east india company",
-  "should_trigger": false
- },
- {
-  "query": "convert 200 USD to CAD for my trip",
-  "should_trigger": false
- },
- {
-  "query": "my credit card has a $40 charge I don't recognize, who do I call",
-  "should_trigger": false
- },
- {
-  "query": "explain how blockchains reach consensus",
-  "should_trigger": false
- },
- {
-  "query": "draft an email to my landlord about the rent increase",
-  "should_trigger": false
- }
+  {
+    "query": "can you run a bull vs bear on NVDA before earnings next week, I hold 40 shares",
+    "should_trigger": true
+  },
+  {
+    "query": "backtest a 20/50 SMA cross on SPY daily since 2015 and tell me if it beats buy and hold",
+    "should_trigger": true
+  },
+  {
+    "query": "i tested like 30 rsi thresholds on QQQ, which one is real and which ones are luck",
+    "should_trigger": true
+  },
+  {
+    "query": "new pump.fun token 7xKX... just launched, is it a rug?",
+    "should_trigger": true
+  },
+  {
+    "query": "i only have 8k, where could a small account actually have an edge the big funds can't take? sweep form 4 insider clusters for me",
+    "should_trigger": true
+  },
+  {
+    "query": "size a position in SHOP.TO, entry 142, stop 136, account is 25k CAD",
+    "should_trigger": true
+  },
+  {
+    "query": "price a 95/90 put credit spread on AMD 30 days out, IV around 45%",
+    "should_trigger": true
+  },
+  {
+    "query": "rebalance my TFSA back to 60/40 XEQT/ZAG, here are my holdings",
+    "should_trigger": true
+  },
+  {
+    "query": "validate my momentum strategy on 5 ETFs net of costs and tell me if it is ready for paper trading",
+    "should_trigger": true
+  },
+  {
+    "query": "polymarket has the fed cut at 38c, I think it's 50%, how much of $500 should I bet",
+    "should_trigger": true
+  },
+  {
+    "query": "did I trigger a superficial loss selling RY.TO in my taxable and buying it in my RRSP?",
+    "should_trigger": true
+  },
+  {
+    "query": "what's the difference between a stock and a bond",
+    "should_trigger": false
+  },
+  {
+    "query": "help me make a monthly grocery budget spreadsheet",
+    "should_trigger": false
+  },
+  {
+    "query": "file my 2025 taxes in TurboTax",
+    "should_trigger": false
+  },
+  {
+    "query": "what does P/E ratio mean",
+    "should_trigger": false
+  },
+  {
+    "query": "write a python function that sorts a list of dicts by date",
+    "should_trigger": false
+  },
+  {
+    "query": "summarize this article about the history of the dutch east india company",
+    "should_trigger": false
+  },
+  {
+    "query": "convert 200 USD to CAD for my trip",
+    "should_trigger": false
+  },
+  {
+    "query": "my credit card has a $40 charge I don't recognize, who do I call",
+    "should_trigger": false
+  },
+  {
+    "query": "explain how blockchains reach consensus",
+    "should_trigger": false
+  },
+  {
+    "query": "draft an email to my landlord about the rent increase",
+    "should_trigger": false
+  },
+  {
+    "query": "explain to my 12 year old what an index fund is, no stock picks please",
+    "should_trigger": false
+  }
 ]
