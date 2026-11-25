@@ -4,9 +4,21 @@
   "expires_on": "2026-12-23",
   "mode": "paper",
   "live_ack": "",
-  "strategies": ["ema9-pullback-v2"],
-  "symbols": ["SPY", "QQQ", "AAPL", "MSFT"],
-  "asset_classes": ["equity"],
+  "strategies": [
+    "ema9-pullback-v2"
+  ],
+  "pipeline_verdict": "READY_FOR_PAPER",
+  "probe": false,
+  "probe_size_multiplier": 0.25,
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT"
+  ],
+  "asset_classes": [
+    "equity"
+  ],
   "allow_short": false,
   "require_stop": true,
   "max_order_usd": 1000,
