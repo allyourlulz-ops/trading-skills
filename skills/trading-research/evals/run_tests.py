@@ -237,14 +237,15 @@ cj = os.path.join(TMP, "c.json"); json.dump({"spread_bps": 10, "slippage_bps": 5
 code, out, err = run("costs.py", "--returns", gross, "--costs", cj, "--out", os.path.join(TMP, "n"))
 d = json.loads(out) if code == 0 else {}
 lines = d.get("cost_lines_bps_per_year", {})
-check("costs lines", d and abs(lines["spread"] - 1.2 * 5) < 0.2 and abs(lines["slippage"] - 1.2 * 5) < 0.2 and abs(lines["borrow"] - 50) < 1, str(lines) + err[-200:])
+# per-trade costs are charged on 2 x one-way turnover (a round trip is two trades)
+check("costs lines", d and abs(lines["spread"] - 2.4 * 5) < 0.3 and abs(lines["slippage"] - 2.4 * 5) < 0.3 and abs(lines["borrow"] - 50) < 1, str(lines) + err[-200:])
 check("costs net below gross", d and d["net_annual_return"] < d["gross_annual_return"])
 # 17. pipeline.py: noise is NOT_READY; premia backtest feeds it end to end
 code, out, err = run("premia_signals.py", "--prices", wide, "--signal", "mom12_1", "--backtest", os.path.join(TMP, "bt"))
 check("premia backtest", code == 0 and os.path.exists(os.path.join(TMP, "bt_gross.csv")), err[-200:])
 code, out, err = run("pipeline.py", "--gross", os.path.join(TMP, "bt_gross.csv"), "--positions", os.path.join(TMP, "bt_positions.csv"), "--workdir", TMP)
 d = json.loads(out) if code == 0 else {}
-check("pipeline runs", d.get("verdict") in ("READY_FOR_PAPER", "NOT_READY") and "costs" in d.get("results", {}), err[-300:])
+check("pipeline runs", d.get("verdict") in ("READY_FOR_PAPER", "PAPER_PROBE", "NOT_READY") and "costs" in d.get("results", {}), err[-300:])
 random.seed(5)
 with open(gross, "w", newline="") as fh:
     w_ = csv.writer(fh); w_.writerow(["date", "ret", "turnover"])
@@ -252,5 +253,199 @@ with open(gross, "w", newline="") as fh:
         w_.writerow([f"d{t:04d}", random.gauss(0, 0.01), 0.05])
 code, out, _ = run("pipeline.py", "--gross", gross, "--trials", "20", "--workdir", TMP)
 check("pipeline noise not ready", code == 0 and json.loads(out)["verdict"] == "NOT_READY")
+# 18. trial_ledger.py: distinct ids counted; --trials auto reads the ledger
+LEDGER = os.path.join(TMP, "trials.jsonl")
+for vid in ("v1", "v2", "v2"):
+    run("trial_ledger.py", "log", "--id", vid, "--family", "t", "--ledger", LEDGER)
+code, out, _ = run("trial_ledger.py", "count", "--family", "t", "--ledger", LEDGER)
+check("ledger counts distinct ids", code == 0 and json.loads(out)["distinct_trials"] == 2, out)
+eqp = os.path.join(TMP, "eq.csv")
+with open(eqp, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "value"]); v = 1.0; random.seed(3)
+    for t in range(300):
+        v *= 1 + random.gauss(0.0005, 0.01); w_.writerow([f"d{t:04d}", v])
+code, out, _ = run("validate_backtest.py", "--equity", eqp, "--trials", "auto", "--family", "t", "--ledger", LEDGER)
+check("validate reads ledger", code == 0 and json.loads(out)["trials"] == 2 and json.loads(out)["trials_source"] == "ledger", out[-300:])
+
+# 19. costs.py: square-root impact (sigma 1.5%, 0.1% of ADV -> 4.7 bps a trade), capacity curve, cost multiples
+with open(gross, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "ret", "turnover", "adv_frac", "sigma"])
+    for t in range(252):
+        w_.writerow([f"d{t:04d}", 0.0006, 0.5, 0.001, 0.015])
+cj0 = os.path.join(TMP, "c0.json"); json.dump({"spread_bps": 0, "slippage_bps": 0}, open(cj0, "w"))
+code, out, err = run("costs.py", "--returns", gross, "--costs", cj0, "--out", os.path.join(TMP, "ni"))
+d = json.loads(out) if code == 0 else {}
+check("costs sqrt impact 4.7 bps per trade", d and abs(d["cost_lines_bps_per_year"]["impact"] - 252 * 1.0 * 4.743) < 3, str(d.get("cost_lines_bps_per_year")) + err[-200:])
+cap = d.get("capacity", [])
+check("costs capacity: edge shrinks with capital", isinstance(cap, list) and cap[0]["net_annual_return"] > cap[-1]["net_annual_return"] and cap[-1]["periods_over_adv_cap"] > 0)
+check("costs multiples", d and d["cost_multiples"]["x3"]["net_annual_return"] < d["cost_multiples"]["x1"]["net_annual_return"])
+
+# 20. rule_screen.py --tried: untraded variants still count in BH
+code, out, _ = run("rule_screen.py", "--trades", os.path.join(TMP, "rs.csv")) if os.path.exists(os.path.join(TMP, "rs.csv")) else (1, "", "")
+rs = os.path.join(TMP, "rs2.csv"); random.seed(11)
+with open(rs, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["rule", "date", "excess"])
+    for k in range(300):
+        dd = f"20{18 + k // 60}-{1 + (k // 5) % 12:02d}-{1 + k % 28:02d}"
+        w_.writerow(["edge", dd, random.gauss(0.004, 0.02)])
+code1, out1, _ = run("rule_screen.py", "--trades", rs)
+code2, out2, _ = run("rule_screen.py", "--trades", rs, "--tried", "500")
+check("rule_screen --tried widens the correction", code1 == 0 and code2 == 0 and json.loads(out2)["variants"] == 500
+      and json.loads(out2)["bonferroni_t_5pct"] > json.loads(out1)["bonferroni_t_5pct"])
+
+# 21. universe.py: 120 names with delistings OK; 50 names TOO_NARROW; no delistings SURVIVORSHIP_SUSPECT
+def panel(path, n, gone):
+    random.seed(n)
+    with open(path, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "symbol", "close", "volume"])
+        for t in range(120):
+            for i in range(n):
+                if i < gone and t > 80:
+                    continue
+                w_.writerow([f"2024-{1 + t // 28:02d}-{1 + t % 28:02d}", f"N{i:03d}", 10 + i, 1000 * (i + 1)])
+for n, gone, want in ((120, 10, "OK"), (50, 5, "TOO_NARROW"), (120, 0, "SURVIVORSHIP_SUSPECT")):
+    pp = os.path.join(TMP, f"panel{n}_{gone}.csv"); panel(pp, n, gone)
+    code, out, err = run("universe.py", "--panel", pp, "--top", "200", "--out", os.path.join(TMP, f"u{n}_{gone}"))
+    check(f"universe {want}", code == 0 and json.loads(out)["verdict"] == want, out[-200:] + err[-200:])
+
+# 22. premia_signals.py --long-short with a borrow file and volumes: no unlocatable short, part fills recorded
+wide2 = os.path.join(TMP, "wide2.csv"); vols2 = os.path.join(TMP, "vols2.csv"); random.seed(21)
+syms2 = [f"S{i}" for i in range(12)]
+with open(wide2, "w", newline="") as fh, open(vols2, "w", newline="") as fv:
+    w_ = csv.writer(fh); wv = csv.writer(fv); w_.writerow(["date"] + syms2); wv.writerow(["date"] + syms2)
+    px = [100.0] * 12
+    for t in range(400):
+        px = [p * (1 + random.gauss(0.0004 * (i - 6), 0.01)) for i, p in enumerate(px)]
+        w_.writerow([f"d{t:04d}"] + [round(p, 4) for p in px]); wv.writerow([f"d{t:04d}"] + [5000] * 12)
+bor = os.path.join(TMP, "borrow.csv")
+with open(bor, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["symbol", "rate_bps_yr", "locate"])
+    for i, sy in enumerate(syms2):
+        w_.writerow([sy, 3000 if sy == "S1" else 40, "no" if sy == "S0" else "yes"])
+code, out, err = run("premia_signals.py", "--prices", wide2, "--signal", "mom12_1", "--long-short", "--backtest", os.path.join(TMP, "ls"),
+                     "--borrow", bor, "--volumes", vols2, "--capital", "100000", "--adv-cap-pct", "1", "--tranches", "3")
+wts = list(csv.DictReader(open(os.path.join(TMP, "ls_weights.csv")))) if code == 0 else []
+check("long-short never shorts S0 (no locate) or S1 (fee too high)", code == 0 and wts and not any(r["symbol"] in ("S0", "S1") and float(r["weight"]) < 0 for r in wts), err[-300:])
+check("long-short has a short leg", any(float(r["weight"]) < 0 for r in wts))
+g2 = list(csv.DictReader(open(os.path.join(TMP, "ls_gross.csv")))) if code == 0 else []
+check("part fills: adv_frac capped at 1%", g2 and "adv_frac" in g2[0] and max(float(r["adv_frac"]) for r in g2) <= 0.0100001 and "borrow_bps_yr" in g2[0])
+
+# 23. monkey_test.py --mode beta_matched: a random long-only picker in a rising market is LUCK, not EDGE
+wide3 = os.path.join(TMP, "wide3.csv"); wfile = os.path.join(TMP, "w3.csv"); random.seed(31)
+syms3 = [f"R{i}" for i in range(30)]
+with open(wide3, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date"] + syms3); px = [100.0] * 30
+    for t in range(1000):
+        px = [p * (1 + random.gauss(0.0006, 0.012)) for p in px]
+        w_.writerow([f"d{t:04d}"] + [round(p, 4) for p in px])
+with open(wfile, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "symbol", "weight"])
+    for t in range(0, 1000, 21):
+        for sy in random.sample(syms3, 5):
+            w_.writerow([f"d{t:04d}", sy, 0.2])
+code, out, err = run("monkey_test.py", "--mode", "beta_matched", "--weights", wfile, "--prices", wide3)
+check("beta-matched monkey: random long-only picks are LUCK", code == 0 and json.loads(out)["verdict"] == "LUCK", out[-300:] + err[-200:])
+
+# 24. strategy_health.py: a 20% drawdown retires; a steady sleeve keeps
+for name, path_, want in (("dd", [1, 1.05, 0.84, 0.85], "RETIRE"), ("ok", [1 + 0.0004 * t for t in range(80)], "KEEP")):
+    ep = os.path.join(TMP, f"sh_{name}.csv")
+    with open(ep, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "value"]); w_.writerows([f"d{t:04d}", v] for t, v in enumerate(path_))
+    code, out, _ = run("strategy_health.py", "--equity", ep)
+    check(f"strategy_health {want}", code == 0 and json.loads(out)["verdict"] == want, out[-200:])
+
+# 25. discover.py: a real post-event drift survives the sweep; a no-mechanism event is flagged
+wide4 = os.path.join(TMP, "wide4.csv"); ev4 = os.path.join(TMP, "ev4.csv"); spec4 = os.path.join(TMP, "spec4.json"); random.seed(41)
+syms4 = [f"E{i}" for i in range(40)]
+from datetime import date as _d, timedelta as _td
+days4, d0 = [], _d(2018, 1, 1)
+while len(days4) < 1500:
+    if d0.weekday() < 5:
+        days4.append(d0.isoformat())
+    d0 += _td(days=1)
+events = [(random.randrange(30, 1450), random.choice(syms4), random.choice(["good", "noise"])) for _ in range(700)]
+boost = {}
+for t, sy, k in events:
+    if k == "good":
+        for j in range(t + 2, t + 7):
+            boost[(j, sy)] = boost.get((j, sy), 0) + 0.004
+with open(wide4, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "SPY"] + syms4); px = [100.0] * 41
+    for t, dd in enumerate(days4):
+        m = random.gauss(0.0003, 0.01)
+        px = [px[0] * (1 + m)] + [p * (1 + m + random.gauss(0, 0.01) + boost.get((t, syms4[i]), 0)) for i, p in enumerate(px[1:])]
+        w_.writerow([dd] + [round(p, 4) for p in px])
+with open(ev4, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "symbol", "event", "value"])
+    for t, sy, k in events:
+        w_.writerow([days4[t], sy, k, 1])
+json.dump({"events": "all", "directions": [1, -1], "horizons": [5, 20], "cost_bps_roundtrip": 10,
+           "mechanism": {"good": "synthetic underreaction"}}, open(spec4, "w"))
+code, out, err = run("discover.py", "--events", ev4, "--prices", wide4, "--spec", spec4, "--out", os.path.join(TMP, "disc"), "--ledger", os.path.join(TMP, "dl.jsonl"))
+d = json.loads(out) if code == 0 else {}
+check("discover finds the real drift", any(v.startswith("disc_good_None_L") for v in d.get("survivors", [])), out[-400:] + err[-300:])
+check("discover: noise event does not survive", not any("noise" in v for v in d.get("survivors", []) + d.get("no_mechanism", [])))
+check("discover logs every variant", d.get("variants_tried") == 8 and d.get("ledger_distinct_trials_discover") == 8)
+
+# 26. Positive-control benchmark suite (evals/benchmark_suite.md): the gates must pass a real edge, not only fail noise
+SUITE_DAYS, _d0 = [], _d(2017, 1, 2)
+while len(SUITE_DAYS) < 2268:
+    if _d0.weekday() < 5:
+        SUITE_DAYS.append(_d0.isoformat())
+    _d0 += _td(days=1)
+
+
+def suite_case(name, gen, n=2268, turnover=0.0, costs=None, leak=False, trials=5):
+    random.seed(sum(map(ord, name)))
+    gp, bp, fp, pp, vp = (os.path.join(TMP, f"{name}_{x}.csv") for x in ("gross", "bench", "fac", "pos", "var"))
+    bench_r, strat_r = [], []
+    for t in range(n):
+        bench_r.append(random.gauss(0, 0.18 / math.sqrt(252)))
+    mb = sum(bench_r) / n
+    bench_r = [x - mb + 0.13 / 252 for x in bench_r]  # exactly 13% a year arithmetic, Sharpe about 0.7
+    strat_r = [gen(b) for b in bench_r]
+    with open(gp, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "ret", "turnover"])
+        for t, x in enumerate(strat_r):
+            w_.writerow([SUITE_DAYS[t], x, turnover])
+    with open(bp, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "value"]); v = 1.0; w_.writerow(["2016-12-30", v])
+        for t, b in enumerate(bench_r):
+            v *= 1 + b; w_.writerow([SUITE_DAYS[t], v])
+    with open(fp, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "mkt"]); w_.writerows([SUITE_DAYS[t], b] for t, b in enumerate(bench_r))
+    with open(pp, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["id", "open_time", "side", "pnl"])
+        w_.writerows([f"p{t}", SUITE_DAYS[t], "long", x * 10000] for t, x in enumerate(strat_r))
+    with open(vp, "w", newline="") as fh:
+        w_ = csv.writer(fh); w_.writerow(["date", "pick"] + [f"alt{k}" for k in range(trials - 1)])
+        for t, x in enumerate(strat_r):
+            w_.writerow([SUITE_DAYS[t], x] + [random.gauss(0, 0.005) for _ in range(trials - 1)])
+    led = os.path.join(TMP, f"{name}_ledger.jsonl")
+    for k in range(trials):
+        run("trial_ledger.py", "log", "--id", f"{name}{k}", "--ledger", led)
+    la, pm = os.path.join(TMP, f"{name}_la.json"), os.path.join(TMP, f"{name}_pm.json")
+    json.dump({"verdict": "LEAK" if leak else "PASS"}, open(la, "w")); json.dump({"verdict": "PASS"}, open(pm, "w"))
+    args = ["pipeline.py", "--gross", gp, "--benchmark", bp, "--factors", fp, "--positions", pp, "--group", "day",
+            "--variants", vp, "--blocks", "8", "--ledger", led, "--lookahead-result", la, "--permutation-result", pm,
+            "--workdir", os.path.join(TMP, name)]
+    if costs:
+        cp = os.path.join(TMP, f"{name}_c.json"); json.dump(costs, open(cp, "w")); args += ["--costs", cp]
+    code, out, err = run(*args)
+    return json.loads(out) if code == 0 else {"verdict": "ERROR", "err": err[-400:]}
+
+neutral = lambda b: random.gauss(0.08 / 252, 0.05 / math.sqrt(252))
+r = suite_case("noise", lambda b: random.gauss(0, 0.01), turnover=0.05)
+check("suite: noise is NOT_READY with DSR < 0.5", r["verdict"] == "NOT_READY" and r["results"]["validate_backtest"]["deflated_sharpe_prob"] < 0.5, str(r)[-300:])
+r = suite_case("premium3x", neutral, turnover=0.01, costs={"spread_bps": 6, "slippage_bps": 9})
+check("suite: strong premium at 3x costs is READY_FOR_PAPER", r["verdict"] == "READY_FOR_PAPER", json.dumps({k: r.get(k) for k in ("verdict", "hard_reasons", "soft_reasons")}))
+r = suite_case("leaked", neutral, leak=True)
+check("suite: a look-ahead leak is NOT_READY", r["verdict"] == "NOT_READY" and any("lookahead" in x for x in r.get("hard_reasons", [])))
+r = suite_case("betaclone", lambda b: b + random.gauss(0, 0.001))
+check("suite: long-only SPY clone is BETA_OR_STYLE and not READY", r["results"].get("attribution", {}).get("verdict") == "BETA_OR_STYLE" and r["verdict"] != "READY_FOR_PAPER", str(r.get("soft_reasons")))
+r = suite_case("neutral16", neutral)
+vb = r.get("results", {}).get("validate_backtest", {})
+check("suite: market-neutral Sharpe 1.6 passes without beating SPY", r["verdict"] == "READY_FOR_PAPER" and vb.get("excess_vs_buy_and_hold", 0) < 0, json.dumps({k: r.get(k) for k in ("verdict", "hard_reasons", "soft_reasons")}))
+
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
