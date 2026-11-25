@@ -1,0 +1,1503 @@
+[
+ {
+  "name": "ps_pass_position_binds",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_flat.json"
+  ],
+  "expect": {
+   "qty": 52.0,
+   "binding_constraint": "position",
+   "constraints.risk_per_trade": 96.0,
+   "constraints.gap": 68.0,
+   "reward_risk": 3.0,
+   "breakeven_win_rate": 0.2595
+  }
+ },
+ {
+  "name": "ps_request_over_limit",
+  "script": "position_size.py",
+  "exit": 1,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "3",
+   "--portfolio",
+   "{F}/pf_flat.json"
+  ],
+  "contains": {
+   "reasons": "exceeds max_risk_per_trade_pct 2.0%"
+  }
+ },
+ {
+  "name": "ps_short_stop_wrong_side",
+  "script": "position_size.py",
+  "exit": 2,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--side",
+   "short",
+   "--portfolio",
+   "{F}/pf_flat.json"
+  ],
+  "contains": {
+   "error": "losing side"
+  }
+ },
+ {
+  "name": "ps_heat_full",
+  "script": "position_size.py",
+  "exit": 1,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_heat.json"
+  ],
+  "expect": {
+   "qty": 0.0,
+   "binding_constraint": "portfolio_heat",
+   "open_risk_before": 11600.0
+  }
+ },
+ {
+  "name": "ps_cluster_binds",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_cluster.json",
+   "--instrument",
+   "{F}/inst_tech.json"
+  ],
+  "expect": {
+   "qty": 17.0,
+   "binding_constraint": "cluster",
+   "cluster_members": [
+    "MSFT",
+    "NVDA"
+   ]
+  }
+ },
+ {
+  "name": "ps_gap_binds",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--instrument",
+   "{F}/inst_gappy.json"
+  ],
+  "expect": {
+   "qty": 19.0,
+   "binding_constraint": "gap"
+  }
+ },
+ {
+  "name": "ps_fx_cad",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "RY",
+   "--entry",
+   "180",
+   "--stop",
+   "172",
+   "--risk-pct",
+   "2",
+   "--limits",
+   "{F}/limits.json",
+   "--portfolio",
+   "{F}/pf_fx.json",
+   "--instrument",
+   "{F}/inst_cad.json"
+  ],
+  "expect": {
+   "qty": 78.0,
+   "binding_constraint": "position",
+   "fx": 0.712,
+   "instrument_currency": "CAD"
+  }
+ },
+ {
+  "name": "ps_fx_missing",
+  "script": "position_size.py",
+  "exit": 2,
+  "args": [
+   "--symbol",
+   "RY",
+   "--entry",
+   "180",
+   "--stop",
+   "172",
+   "--limits",
+   "{F}/limits.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--instrument",
+   "{F}/inst_cad.json"
+  ],
+  "contains": {
+   "error": "need fx CADUSD"
+  }
+ },
+ {
+  "name": "ps_option_multiplier",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL261218C00200000",
+   "--entry",
+   "2.5",
+   "--asset-class",
+   "option",
+   "--risk-pct",
+   "1",
+   "--limits",
+   "{F}/limits_open.json",
+   "--portfolio",
+   "{F}/pf_flat.json"
+  ],
+  "expect": {
+   "qty": 1.0,
+   "binding_constraint": "risk_per_trade",
+   "risk_per_unit": 250.0,
+   "multiplier": 100.0
+  }
+ },
+ {
+  "name": "ps_crypto_fractional_gap",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "BTC/USD",
+   "--entry",
+   "90000",
+   "--stop",
+   "86000",
+   "--asset-class",
+   "crypto",
+   "--risk-pct",
+   "1",
+   "--limits",
+   "{F}/limits_open.json",
+   "--portfolio",
+   "{F}/pf_flat.json"
+  ],
+  "expect": {
+   "qty": 0.038461,
+   "binding_constraint": "gap",
+   "session": "24x7"
+  }
+ },
+ {
+  "name": "ps_fractional_equity",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--instrument",
+   "{F}/inst_fractional.json"
+  ],
+  "expect": {
+   "qty": 52.631,
+   "binding_constraint": "position"
+  }
+ },
+ {
+  "name": "ps_buying_power_binds",
+  "script": "position_size.py",
+  "exit": 0,
+  "args": [
+   "--symbol",
+   "AAPL",
+   "--entry",
+   "190",
+   "--stop",
+   "185",
+   "--target",
+   "205",
+   "--limits",
+   "{F}/limits.json",
+   "--risk-pct",
+   "2",
+   "--portfolio",
+   "{F}/pf_lowbp.json"
+  ],
+  "expect": {
+   "qty": 7.0,
+   "binding_constraint": "buying_power"
+  }
+ },
+ {
+  "name": "rc_pass",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "reasons": [],
+   "sizing.qty": 52.0,
+   "sizing.binding_constraint": "position",
+   "mode": "paper"
+  },
+  "contains": {
+   "nonce": "RC2.PASS."
+  }
+ },
+ {
+  "name": "rc_pass2",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "expect": {
+   "verdict": "pass"
+  }
+ },
+ {
+  "name": "rc_pass3",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "expect": {
+   "verdict": "pass"
+  }
+ },
+ {
+  "name": "rc_too_big",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_too_big.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "expect": {
+   "verdict": "fail"
+  },
+  "contains": {
+   "reasons": "SIZE: qty 53 > sized max 52 (binding: position)",
+   "nonce": "RC2.FAIL."
+  }
+ },
+ {
+  "name": "rc_stale_data",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_stale.json"
+  ],
+  "contains": {
+   "reasons": "DATA_CONTRACT: STALE"
+  }
+ },
+ {
+  "name": "rc_no_contract",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00"
+  ],
+  "contains": {
+   "reasons": "DATA_CONTRACT: required for entries"
+  }
+ },
+ {
+  "name": "rc_contract_wrong_symbol",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_msft_only.json"
+  ],
+  "contains": {
+   "reasons": "no quote series for AAPL"
+  }
+ },
+ {
+  "name": "rc_dividend_adjusted_quote",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_divadj.json"
+  ],
+  "contains": {
+   "reasons": "DATA_CONTRACT: POLICY"
+  }
+ },
+ {
+  "name": "rc_future_data",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_future.json"
+  ],
+  "contains": {
+   "reasons": "DATA_CONTRACT: INVALID"
+  }
+ },
+ {
+  "name": "rc_mode_mismatch",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "live",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "MODE_MISMATCH"
+  }
+ },
+ {
+  "name": "rc_live_account",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_live.json",
+   "--mode",
+   "live",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "LIVE_NOT_ALLOWED"
+  }
+ },
+ {
+  "name": "rc_exit_without_position",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_exit.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "EXIT_NO_POSITION"
+  }
+ },
+ {
+  "name": "rc_exit_with_position",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_exit.json",
+   "--portfolio",
+   "{F}/pf_hold_aapl.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00"
+  ],
+  "expect": {
+   "verdict": "pass"
+  }
+ },
+ {
+  "name": "rc_short_allowed",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_short.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits_open.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_tsla.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "sizing.side": "short",
+   "sizing.qty": 28.0
+  }
+ },
+ {
+  "name": "rc_short_disabled",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_short.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_tsla.json"
+  ],
+  "contains": {
+   "reasons": "SHORT_OFF"
+  }
+ },
+ {
+  "name": "rc_market_closed",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_closed.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "MARKET_CLOSED"
+  }
+ },
+ {
+  "name": "rc_no_clock",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_noclock.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "NO_CLOCK"
+  }
+ },
+ {
+  "name": "rc_crypto_saturday",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_btc.json",
+   "--portfolio",
+   "{F}/pf_noclock.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits_open.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-28T03:00:00-05:00",
+   "--contract",
+   "{F}/contract_btc_sat.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "sizing.session": "24x7"
+  }
+ },
+ {
+  "name": "rc_options_disabled",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_option.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_opt.json"
+  ],
+  "contains": {
+   "reasons": "OPTIONS_OFF"
+  }
+ },
+ {
+  "name": "rc_option_multiplier",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_option.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits_open.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_opt.json"
+  ],
+  "contains": {
+   "reasons": "SIZE: qty 3 > sized max 1"
+  }
+ },
+ {
+  "name": "rc_request_5pct",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_5pct.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "RISK_LIMIT: requested 5% risk exceeds"
+  }
+ },
+ {
+  "name": "rc_context_calm",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--context",
+   "{F}/ctx_calm.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "sizing.qty": 52.0
+  }
+ },
+ {
+  "name": "rc_earnings_blackout",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--context",
+   "{F}/ctx_earnings.json"
+  ],
+  "contains": {
+   "reasons": "TIMING:"
+  }
+ },
+ {
+  "name": "rc_high_vix_shrinks_size",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--context",
+   "{F}/ctx_highvix.json"
+  ],
+  "contains": {
+   "reasons": "SIZE: qty 52 > sized max 38 (binding: gap)"
+  }
+ },
+ {
+  "name": "rc_stale_context",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--context",
+   "{F}/ctx_stale.json"
+  ],
+  "contains": {
+   "reasons": "STALE_CONTEXT"
+  }
+ },
+ {
+  "name": "rc_low_reward_risk",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json"
+  ],
+  "contains": {
+   "reasons": "REWARD_RISK"
+  }
+ },
+ {
+  "name": "rc_override_soft",
+  "script": "risk_check.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--override",
+   "paper test of exit logic at a tight target",
+   "--override-ack",
+   "I override the risk gate for this order and accept the loss"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "override.accepted": true
+  },
+  "contains": {
+   "nonce": "RC2.OVERRIDE."
+  }
+ },
+ {
+  "name": "rc_override_hard_refused",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_too_big.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--override",
+   "I know better than the sizer",
+   "--override-ack",
+   "I override the risk gate for this order and accept the loss"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "override.accepted": false
+  },
+  "contains": {
+   "override.refused_because": "HARD reasons cannot be overridden"
+  }
+ },
+ {
+  "name": "rc_override_bad_ack",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--portfolio",
+   "{F}/pf_flat.json",
+   "--mode",
+   "paper",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--override",
+   "paper test of exit logic",
+   "--override-ack",
+   "yes"
+  ],
+  "expect": {
+   "override.accepted": false
+  },
+  "contains": {
+   "override.refused_because": "override ack must be exactly"
+  }
+ },
+ {
+  "name": "rc_override_live_refused",
+  "script": "risk_check.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--portfolio",
+   "{F}/pf_live.json",
+   "--mode",
+   "live",
+   "--limits",
+   "{F}/limits.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--contract",
+   "{F}/contract_aapl.json",
+   "--override",
+   "live override attempt here",
+   "--override-ack",
+   "I override the risk gate for this order and accept the loss"
+  ],
+  "contains": {
+   "override.refused_because": "overrides are paper only"
+  }
+ },
+ {
+  "name": "pv_alpaca_typo",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_typo.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass2.json"
+  ],
+  "expect": {
+   "mode": "unknown",
+   "preview_first_line": "MODE: UNKNOWN, order refused"
+  },
+  "contains": {
+   "reasons": "ALPACA_PAPER_TRADE is 'True '"
+  }
+ },
+ {
+  "name": "pv_alpaca_unset",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_unset.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass2.json"
+  ],
+  "contains": {
+   "reasons": "ALPACA_PAPER_TRADE is None"
+  }
+ },
+ {
+  "name": "pv_paper_order_live_config",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_live.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass2.json"
+  ],
+  "expect": {
+   "preview_first_line": "MODE: LIVE, REAL MONEY, https://api.alpaca.markets"
+  },
+  "contains": {
+   "reasons": "order is marked paper but the config sends it to LIVE"
+  }
+ },
+ {
+  "name": "pv_tampered_order",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_tampered.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass2.json"
+  ],
+  "contains": {
+   "reasons": "order differs from the one risk_check checked"
+  }
+ },
+ {
+  "name": "pv_open",
+  "script": "preview.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass.json"
+  ],
+  "expect": {
+   "gate": "OPEN",
+   "preview_first_line": "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets"
+  },
+  "contains": {
+   "preview": "Order: BUY 52 AAPL | limit @ 190.0 | stop 185.0 | target 205.0 | day"
+  }
+ },
+ {
+  "name": "pv_nonce_reuse",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass.json"
+  ],
+  "contains": {
+   "reasons": "nonce already used"
+  }
+ },
+ {
+  "name": "pv_open_after_refusals",
+  "script": "preview.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_pass2.json"
+  ],
+  "expect": {
+   "gate": "OPEN"
+  }
+ },
+ {
+  "name": "pv_fail_nonce",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_too_big.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_too_big.json"
+  ],
+  "contains": {
+   "reasons": "risk_check verdict fail"
+  }
+ },
+ {
+  "name": "pv_override_needs_flag",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_override_soft.json"
+  ],
+  "contains": {
+   "reasons": "--allow-override"
+  }
+ },
+ {
+  "name": "pv_override_open",
+  "script": "preview.py",
+  "exit": 0,
+  "args": [
+   "--order",
+   "{F}/order_low_rr.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json",
+   "--risk",
+   "{OUT}/rc_override_soft.json",
+   "--allow-override"
+  ],
+  "expect": {
+   "override": true
+  },
+  "contains": {
+   "preview": "RISK GATE OVERRIDDEN"
+  }
+ },
+ {
+  "name": "pv_no_nonce",
+  "script": "preview.py",
+  "exit": 1,
+  "args": [
+   "--order",
+   "{F}/order_pass.json",
+   "--config",
+   "{F}/cfg_paper.json",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:30:00-05:00",
+   "--json",
+   "--limits",
+   "{F}/limits.json"
+  ],
+  "contains": {
+   "reasons": "no nonce"
+  }
+ },
+ {
+  "name": "gate_expired",
+  "script": "gate.py",
+  "exit": 1,
+  "args": [
+   "verify",
+   "--nonce",
+   "{nonce:rc_pass3}",
+   "--order",
+   "{F}/order_pass.json",
+   "--mode",
+   "paper",
+   "--gate-dir",
+   "{G}",
+   "--now",
+   "2026-11-25T10:40:00-05:00"
+  ],
+  "contains": {
+   "reasons": "nonce expired"
+  }
+ },
+ {
+  "name": "gate_forged",
+  "script": "gate.py",
+  "exit": 1,
+  "args": [
+   "verify",
+   "--nonce",
+   "RC2.PASS.0000000000000000.paper.9999999999.00000000.00000000.00000000000000000000000000000000",
+   "--order",
+   "{F}/order_pass.json",
+   "--mode",
+   "paper",
+   "--gate-dir",
+   "{G}"
+  ],
+  "contains": {
+   "reasons": "signature invalid"
+  }
+ },
+ {
+  "name": "dc_missing_offset",
+  "script": "data_contract.py",
+  "exit": 2,
+  "args": [
+   "--contract",
+   "{F}/contract_nooffset.json"
+  ],
+  "expect": {
+   "verdict": "INVALID"
+  }
+ },
+ {
+  "name": "lock_configs_pinned",
+  "script": "mcp_lock.py",
+  "exit": 0,
+  "args": [
+   "check-config",
+   "--config",
+   "{S}/../assets/mcp-config.paper-execute.json",
+   "--lock",
+   "{S}/../assets/mcp-lock.json"
+  ],
+  "expect": {
+   "verdict": "PINNED"
+  }
+ },
+ {
+  "name": "lock_unpinned_refused",
+  "script": "mcp_lock.py",
+  "exit": 2,
+  "args": [
+   "check-config",
+   "--config",
+   "{F}/cfg_unpinned.json",
+   "--lock",
+   "{S}/../assets/mcp-lock.json"
+  ],
+  "expect": {
+   "verdict": "UNPINNED"
+  },
+  "contains": {
+   "servers.alpaca.reasons": "alpaca-mcp-server not pinned as alpaca-mcp-server==2.4.1"
+  }
+ },
+ {
+  "name": "lock_tools_unrecorded",
+  "script": "mcp_lock.py",
+  "exit": 2,
+  "args": [
+   "verify",
+   "--server",
+   "alpaca",
+   "--tools",
+   "{F}/tools_clean.json",
+   "--lock",
+   "{S}/../assets/mcp-lock.json"
+  ],
+  "expect": {
+   "verdict": "UNRECORDED"
+  }
+ },
+ {
+  "name": "lock_tools_ok",
+  "script": "mcp_lock.py",
+  "exit": 0,
+  "args": [
+   "verify",
+   "--server",
+   "alpaca",
+   "--tools",
+   "{F}/tools_clean.json",
+   "--lock",
+   "{F}/lock_recorded.json"
+  ],
+  "expect": {
+   "verdict": "OK"
+  }
+ },
+ {
+  "name": "lock_tools_drift",
+  "script": "mcp_lock.py",
+  "exit": 2,
+  "args": [
+   "verify",
+   "--server",
+   "alpaca",
+   "--tools",
+   "{F}/tools_changed.json",
+   "--lock",
+   "{F}/lock_recorded.json"
+  ],
+  "expect": {
+   "verdict": "DRIFT",
+   "changed": [
+    "get_stock_latest_quote"
+   ]
+  }
+ },
+ {
+  "name": "lock_tools_injection",
+  "script": "mcp_lock.py",
+  "exit": 2,
+  "args": [
+   "verify",
+   "--server",
+   "alpaca",
+   "--tools",
+   "{F}/tools_injected.json",
+   "--lock",
+   "{F}/lock_recorded.json"
+  ],
+  "expect": {
+   "verdict": "SUSPECT"
+  }
+ }
+]
