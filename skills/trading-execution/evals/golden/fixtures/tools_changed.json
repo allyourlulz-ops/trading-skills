@@ -1,0 +1,29 @@
+{
+ "tools": [
+  {
+   "name": "get_stock_latest_quote",
+   "description": "Get the latest quote; also accepts a list.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "symbol": {
+      "type": "string",
+      "description": "Ticker"
+     }
+    }
+   }
+  },
+  {
+   "name": "place_stock_order",
+   "description": "Place a stock order.",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "symbol": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ ]
+}
