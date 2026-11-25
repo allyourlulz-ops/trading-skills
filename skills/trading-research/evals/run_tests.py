@@ -29,7 +29,7 @@ for f in sorted(os.listdir(SCRIPTS)):
         try:
             py_compile.compile(path, cfile=os.path.join(TMP, f + "c"), doraise=True)
             ok = True
-        except py_compile.PyCompileError as e:
+        except py_compile.PyCompileError:
             ok = False
         check(f"compile {f}", ok)
         code, _, err = run(f, "--help")
@@ -106,18 +106,23 @@ open(centred, "w").write("import csv,sys\nr=list(csv.reader(open(sys.argv[1])))[
 code, out, _ = run("lookahead_check.py", "--prices", px, "--cmd", f"{sys.executable} {centred} {{prices}}")
 check("lookahead two-sided smoother leaks", code == 2 and json.loads(out)["verdict"] == "LEAK")
 
-# 8. risk_check.py --bar: forming bar and frozen feed block, a fresh closed bar does not
-order = os.path.join(TMP, "order.json")
+# 8. risk_check.py --bar: forming bar and frozen feed fail the gate, a fresh closed bar does not
+order = os.path.join(TMP, "order.json"); pfp = os.path.join(TMP, "pf.json"); ctp = os.path.join(TMP, "ct.json")
+now = "2026-11-23T10:20:00-05:00"
 json.dump({"symbol": "AAA", "side": "buy", "qty": 5, "type": "limit", "limit_price": 190.0, "stop_price": 186.0,
            "target_price": 198.0, "asset_class": "equity"}, open(order, "w"))
+json.dump({"base_currency": "USD", "equity": 25000, "buying_power": 20000, "paper": True, "positions": [],
+           "clock": {"is_open": True, "source": "test", "as_of": now}}, open(pfp, "w"))
+json.dump({"series": [{"name": "AAA", "symbol": "AAA", "role": "quote", "source": "test", "as_of": now, "last_bar_end": now,
+                       "timeframe": "1m", "adjustment": "raw", "currency": "USD"}]}, open(ctp, "w"))
 def bar_blocks(bar, now):
     f = os.path.join(TMP, "bar.json"); json.dump(bar, open(f, "w"))
-    _, out, _ = run("risk_check.py", "--order", order, "--bar", f, "--now", now)
-    return [b for b in json.loads(out)["blocks"] if "bar" in b or "stale" in b]
-now = "2026-11-23T15:20:00+00:00"
-check("bar fresh passes", bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T14:00:00+00:00", "closed": True}, now) == [])
-check("bar forming blocks", any("forming" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T15:00:00+00:00", "closed": False}, now)))
-check("bar stale blocks", any("stale" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T10:00:00+00:00", "closed": True}, now)))
+    _, out, _ = run("risk_check.py", "--order", order, "--portfolio", pfp, "--contract", ctp, "--mode", "paper",
+                    "--bar", f, "--now", now, "--gate-dir", os.path.join(TMP, "gate"))
+    return [b for b in json.loads(out)["reasons"] if b.startswith("BAR:")]
+check("bar fresh passes", bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T09:00:00-05:00", "closed": True}, now) == [])
+check("bar forming blocks", any("forming" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T10:00:00-05:00", "closed": False}, now)))
+check("bar stale blocks", any("stale" in b for b in bar_blocks({"timeframe": "1h", "last_bar_open": "2026-11-23T05:00:00-05:00", "closed": True}, now)))
 
 # 9. black_litterman.py --neutral: net exposure 0, gross 1, cap respected
 bl = os.path.join(TMP, "bl.csv"); random.seed(5); ps = [100.0] * 4
@@ -470,6 +475,38 @@ check("interlisted: buy picks TSX when FX costs 150 bps", il_run("buy", il)["ver
 r = il_run("norbert", {"amount_cad": 10000, "dlr_ask_cad": 14.10, "dlr_u_bid_usd": 10.00,
                        "fees": {"per_trade_cad": 4.95, "per_trade_usd": 4.95}, "broker_fx_rate": 1.43})
 check("interlisted: Norbert's gambit beats a 1.43 broker rate", r["verdict"] == "GAMBIT_CHEAPER" and r["units"] == 708 and abs(r["gambit_saves_usd"] - 90.61) < 0.01, str(r))
+
+# engine.py: output is accepted by validate_backtest --manifest on alignment, lookahead, same-bar and costs
+eg = os.path.join(TMP, "eng"); os.makedirs(eg, exist_ok=True); rr = random.Random(1); pz = 100.0; dd = datetime.date(2022, 1, 3); bars = []
+while len(bars) < 600:
+    if dd.weekday() < 5:
+        o_ = pz * (1 + rr.gauss(0, 0.003)); c_ = o_ * (1 + rr.gauss(0.0004, 0.01))
+        bars.append([dd.isoformat(), round(o_, 4), round(max(o_, c_) * 1.003, 4), round(min(o_, c_) * 0.997, 4), round(c_, 4)]); pz = c_
+    dd += datetime.timedelta(days=1)
+with open(os.path.join(eg, "bars.csv"), "w", newline="") as fh:
+    w = csv.writer(fh); w.writerow(["date", "open", "high", "low", "close"]); w.writerows(bars)
+open(os.path.join(eg, "sig.py"), "w").write("class SignalEngine:\n    def generate(self, bars):\n        c=[b['close'] for b in bars]\n        return [1.0 if i>=20 and c[i]>sum(c[i-20:i])/20 else 0.0 for i in range(len(c))]\n")
+code, out, err = run("engine.py", "--bars", os.path.join(eg, "bars.csv"), "--signal", os.path.join(eg, "sig.py"), "--market", "us_equity", "--out", os.path.join(eg, "out"))
+check("engine runs", code == 0, err[-300:])
+D_ = [b[0] for b in bars]
+folds_ = [{"train_start": D_[0], "train_end": D_[199], "test_start": D_[200], "test_end": D_[332]},
+          {"train_start": D_[0], "train_end": D_[332], "test_start": D_[333], "test_end": D_[465]},
+          {"train_start": D_[0], "train_end": D_[465], "test_start": D_[466], "test_end": D_[-1]}]
+open(os.path.join(eg, "reg.csv"), "w").write("date,label\n" + "".join(f"{d},{'a' if i < 300 else 'b'}\n" for i, d in enumerate(D_)))
+json.dump({"periods_per_year": 252, "gross_equity": "out/gross.csv", "net_equity": "out/net.csv", "turnover": "out/turnover.csv",
+           "costs": {"fee_bps": 1, "slippage_bps": 4}, "benchmark": "out/gross.csv", "trades": "out/trades.csv", "trials": 3,
+           "universe": {"single_instrument": True}, "walk_forward": {"folds": folds_}, "regimes": "reg.csv", "llm_in_loop": False},
+          open(os.path.join(eg, "m.json"), "w"))
+code, out, _ = run("validate_backtest.py", "--manifest", os.path.join(eg, "m.json"))
+vb_ = json.loads(out)["checks"]
+check("engine output passes alignment, lookahead, same-bar and cost checks",
+      all(vb_[k]["status"] == "pass" for k in ("alignment", "lookahead", "same_bar", "costs")), str({k: v.get("why") for k, v in vb_.items()}))
+check("a plain 20-day SMA rule does not pass the full gate", json.loads(out)["verdict"] == "fail")
+
+# golden fixtures: validate_backtest --manifest (every check's failure path) and legacy-mode refusals
+g = subprocess.run([sys.executable, os.path.join(HERE, "golden", "run_golden.py")], capture_output=True, text=True)
+check("golden validate_backtest fixtures", g.returncode == 0, g.stdout[-1500:])
+print(g.stdout.strip().splitlines()[-1] if g.stdout.strip() else "")
 
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
