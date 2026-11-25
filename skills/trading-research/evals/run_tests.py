@@ -447,5 +447,29 @@ r = suite_case("neutral16", neutral)
 vb = r.get("results", {}).get("validate_backtest", {})
 check("suite: market-neutral Sharpe 1.6 passes without beating SPY", r["verdict"] == "READY_FOR_PAPER" and vb.get("excess_vs_buy_and_hold", 0) < 0, json.dumps({k: r.get(k) for k in ("verdict", "hard_reasons", "soft_reasons")}))
 
+# interlisted.py
+il = {"symbol": "RY", "ratio": 1, "ca": {"bid": 180.00, "ask": 180.05, "ts": "2026-11-25T14:30:01-05:00"},
+      "us": {"bid": 127.80, "ask": 127.83, "ts": "2026-11-25T14:30:02-05:00"},
+      "fx": {"bid": 1.4085, "ask": 1.4087, "ts": "2026-11-25T14:30:01-05:00", "source": "broker"},
+      "fees": {"ca_per_trade_cad": 4.95, "us_per_trade_usd": 4.95, "fx_spread_bps": 150}, "amount_cad": 10000}
+def il_run(mode, d):
+    fp = os.path.join(TMP, f"il_{mode}.json"); json.dump(d, open(fp, "w"))
+    code, out, err = run("interlisted.py", mode, "--input", fp); return json.loads(out) if code == 0 else {"verdict": "ERROR", "err": err}
+r = il_run("pair", il)
+check("interlisted: fair pair with 150 bps FX is NO_EDGE", r["verdict"] == "NO_EDGE" and abs(r["premium_bps_tsx_over_us"]) < 5, str(r))
+gap = json.loads(json.dumps(il)); gap["fees"]["fx_spread_bps"] = 0; gap["us"].update(bid=129.5, ask=129.52)
+r = il_run("pair", gap)
+check("interlisted: 130 bps gap with free FX clears costs", r["verdict"] == "EDGE_AFTER_COSTS" and r["net_cad"] > 0, str(r))
+st = json.loads(json.dumps(il)); st["us"]["ts"] = "2026-11-25T14:31:02-05:00"
+check("interlisted: quotes 61 s apart are STALE", il_run("pair", st)["verdict"] == "STALE")
+cl = json.loads(json.dumps(il)); cl["ca"]["ts"] = cl["us"]["ts"] = cl["fx"]["ts"] = "2026-11-28T11:00:00-05:00"
+check("interlisted: Saturday quotes are STALE", il_run("pair", cl)["verdict"] == "STALE")
+bc = json.loads(json.dumps(gap)); bc["fx"]["source"] = "boc"
+check("interlisted: Bank of Canada rate caps verdict at INDICATIVE", il_run("pair", bc)["verdict"] == "INDICATIVE")
+check("interlisted: buy picks TSX when FX costs 150 bps", il_run("buy", il)["verdict"] == "BUY_TSX")
+r = il_run("norbert", {"amount_cad": 10000, "dlr_ask_cad": 14.10, "dlr_u_bid_usd": 10.00,
+                       "fees": {"per_trade_cad": 4.95, "per_trade_usd": 4.95}, "broker_fx_rate": 1.43})
+check("interlisted: Norbert's gambit beats a 1.43 broker rate", r["verdict"] == "GAMBIT_CHEAPER" and r["units"] == 708 and abs(r["gambit_saves_usd"] - 90.61) < 0.01, str(r))
+
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
