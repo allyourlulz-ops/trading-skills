@@ -4,6 +4,7 @@
 Usage:
   monkey_test.py --positions positions.csv [--monkeys 2048] [--group position|day]
                  [--bar 1] [--seed 7] [--currency USD]
+  monkey_test.py --mode beta_matched --weights weights.csv --prices closes.csv [--monkeys 2048] [--bar 1]
 
 positions.csv, one row per position from flat to flat (broker or paper fills rolled up):
   id,open_time,side,pnl[,fees]
@@ -22,6 +23,12 @@ LUCK is not proof of no skill; short samples and few groups rarely clear the bar
 What it tests: direction only. Timing and sizing are held fixed. A long-only strategy in a rising
 market scores HIGH (a monkey goes short half the time), so a high percentile can be pure beta:
 always pair it with attribution.py. (Found on the real-data run, examples/real-data-run.md.) Run it on paper results before any stage advance.
+
+--mode beta_matched (selection test): weights.csv is date,symbol,weight at each rebalance (from
+premia_signals.py --backtest). Each monkey keeps the same weights on the same dates, so the same
+number of names, the same gross and net exposure and the same long/short split, and draws WHICH names
+at random from those trading on both dates. Beta and timing are held fixed; only selection varies.
+A long-only fund in a rising market no longer scores high just for being long.
 
 Method: per-position coin-flip test as published by oaia.fun for Alpha Arena (2026-11-06 and
 2026-11-10); this is own code, no code from that site is used.
@@ -48,15 +55,76 @@ def load(path):
     return out
 
 
+def verdict_of(actual, sims, bar):
+    ge = sum(1 for x in sims if x >= actual); le = sum(1 for x in sims if x <= actual)
+    below = sum(1 for x in sims if x < actual)
+    pct = 100.0 * (below + 0.5 * (len(sims) - below - (len(sims) - le))) / len(sims)
+    return ("EDGE" if ge <= bar else "ANTI_EDGE" if le <= bar else "LUCK"), pct, ge
+
+
+def beta_matched(a):
+    import math
+    rows = list(csv.reader(open(a.prices, newline="")))
+    syms = rows[0][1:]
+    px = {r[0][:10]: {s: float(x) for s, x in zip(syms, r[1:]) if x not in ("", "NA")} for r in rows[1:] if r}
+    dates = sorted(px)
+    W = defaultdict(dict)
+    for r in csv.DictReader(open(a.weights, newline="")):
+        W[r["date"][:10]][r["symbol"]] = float(r["weight"])
+    starts = sorted(d for d in W if d in px)
+    if len(starts) < 2:
+        sys.exit("need at least 2 rebalance dates found in the price file")
+    blocks = []
+    for i, d in enumerate(starts):
+        e = starts[i + 1] if i + 1 < len(starts) else dates[-1]
+        pool = [s for s in syms if s in px[d] and s in px[e] and px[d][s] > 0]
+        w = {s: x for s, x in W[d].items() if s in pool}
+        if not w or len(pool) <= len(w):
+            continue
+        ret = {s: px[e][s] / px[d][s] - 1 for s in pool}
+        blocks.append((w, pool, ret))
+    if not blocks:
+        sys.exit("no usable blocks: every block held the whole pool, so selection cannot be tested")
+    lg = lambda x: math.log(max(1e-9, 1 + x))
+    actual = sum(lg(sum(x * b[2][s] for s, x in b[0].items())) for b in blocks)
+    rng = random.Random(a.seed); sims = []
+    for _ in range(a.monkeys):
+        tot = 0.0
+        for w, pool, ret in blocks:
+            pick = rng.sample(pool, len(w))
+            tot += lg(sum(x * ret[s] for x, s in zip(w.values(), pick)))
+        sims.append(tot)
+    v, pct, ge = verdict_of(actual, sims, a.bar)
+    sims.sort()
+    warn = [] if len(blocks) >= 30 else [f"only {len(blocks)} blocks; LUCK is the likely verdict"]
+    avg_pool = sum(len(b[1]) for b in blocks) / len(blocks); avg_n = sum(len(b[0]) for b in blocks) / len(blocks)
+    if avg_pool < 3 * avg_n:
+        warn.append(f"holding {avg_n:.1f} of {avg_pool:.1f} names on average: too few alternatives for a strong test; use a wider universe")
+    print(json.dumps({"verdict": v, "mode": "beta_matched", "percentile": round(pct, 1),
+                      "p_value_one_sided": round((ge + 1) / (a.monkeys + 1), 4), "monkeys": a.monkeys, "bar": a.bar,
+                      "blocks": len(blocks), "avg_names_held": round(avg_n, 1), "avg_pool": round(avg_pool, 1),
+                      "actual_log_return": round(actual, 4), "median_monkey_log_return": round(sims[len(sims) // 2], 4),
+                      "seed": a.seed, "warnings": warn,
+                      "note": "selection-only test: same weights, exposure and dates; only the names are random"}, indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--positions", required=True)
+    ap.add_argument("--positions")
+    ap.add_argument("--mode", choices=["direction", "beta_matched"], default="direction")
+    ap.add_argument("--weights"); ap.add_argument("--prices")
     ap.add_argument("--monkeys", type=int, default=2048)
     ap.add_argument("--group", choices=["position", "day"], default="position")
     ap.add_argument("--bar", type=int, default=1, help="monkeys allowed at or beyond the actual result")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--currency", default="USD")
     a = ap.parse_args()
+    if a.mode == "beta_matched":
+        if not (a.weights and a.prices):
+            sys.exit("--mode beta_matched needs --weights and --prices")
+        return beta_matched(a)
+    if not a.positions:
+        sys.exit("--positions required")
     P = load(a.positions)
     if a.group == "day" and any(not p["day"] for p in P):
         sys.exit("--group day needs open_time on every row")
