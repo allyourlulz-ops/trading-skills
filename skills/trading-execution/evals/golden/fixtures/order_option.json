@@ -1,0 +1,12 @@
+{
+ "symbol": "AAPL261218C00200000",
+ "side": "buy",
+ "qty": 3,
+ "type": "limit",
+ "limit_price": 2.5,
+ "time_in_force": "day",
+ "asset_class": "option",
+ "client_order_id": "golden-opt-1",
+ "risk_pct": 1,
+ "paper": true
+}
