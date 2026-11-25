@@ -34,7 +34,7 @@ The size column multiplies the size from position_size.py; risk clamps may only 
 - A red flag on a confirmed story blocks new buys. Only the company's own filing, or its release confirming what independent outlets reported first, can force a sale.
 - A denial clears the story it refutes.
 - In backtests a headline exists from the minute it was published; orders fill at the next open.
-- In that project's 2026 test, a sentiment filter made five standard swing strategies slightly worse. News is a veto and a risk flag here, not an entry signal, unless rule_screen.py and permutation_test.py say otherwise.
+- In that project's 2026 test, a sentiment filter made five standard swing strategies slightly worse. News is a conviction penalty (post-close, undigested headlines only) and a risk flag here, not an entry signal, unless rule_screen.py and permutation_test.py say otherwise.
 
 ## 4. The LLM's role in a bot
 - The model proposes a view; code sizes it. In mandate mode the model may move conviction by at most ±0.15, or veto a buy. It cannot create a trade, add a symbol or change a limit.
