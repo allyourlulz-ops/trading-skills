@@ -1,0 +1,1 @@
+{"mcpServers": {"alpaca": {"command": "uvx", "args": ["alpaca-mcp-server"], "env": {"ALPACA_PAPER_TRADE": "true"}}}}
