@@ -50,7 +50,11 @@ Prefer limit or bracket orders with the stop attached.
 ## Generic gating for any trading MCP (QuantDinger pattern)
 Token scopes by risk: read / write / backtest / notify / trade. Every mutating call carries a caller-generated `idempotency_key`. Require explicit `confirm_order=true`; live needs a separate `confirm_live_trading=true` plus a server flag. Keep an emergency stop that cancels agent orders and revokes trade tokens.
 
+## Per-strategy kill switch (scripts/strategy_health.py)
+The account limits do not retire a dead strategy. `strategy_kill` in risk-limits.json: RETIRE at 15% drawdown from the strategy's own peak, 90 trading days under water, or average slippage (fill vs decision price) over 25 bps; WATCH under 63 days of record. A retired strategy stops opening positions; restarting it needs a new pipeline.py verdict.
+
 ## Staged rollout (never skip a stage)
+0. Paper probe: a PAPER_PROBE strategy runs on paper at a quarter of normal size (`"probe": true` in the mandate) to collect forward data, then is reviewed after 63 trading days.
 1. Paper: every role runs, the executor only logs. Advance when the funnel works, logs are clean, and `monkey_test.py` and `attribution.py` have been run on the paper positions and shown to the user. ANTI_EDGE blocks advancing; LUCK or BETA_OR_STYLE must be said plainly ("this result can't be told from chance" / "this is market and style exposure"), and the user decides.
 2. Small live, every order approved by hand. Advance only when net positive AFTER fees and slippage (paper fills hide both).
 3. Semi-auto: auto below a small size, ask above. Advance when the logs show zero broken rules.
