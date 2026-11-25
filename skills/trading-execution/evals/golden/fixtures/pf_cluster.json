@@ -1,0 +1,40 @@
+{
+ "as_of": "2026-11-25T10:30:00-05:00",
+ "base_currency": "USD",
+ "equity": 25000,
+ "buying_power": 20000,
+ "paper": true,
+ "clock": {
+  "is_open": true,
+  "source": "alpaca:get_clock",
+  "as_of": "2026-11-25T10:30:00-05:00"
+ },
+ "positions": [
+  {
+   "symbol": "MSFT",
+   "side": "long",
+   "qty": 20,
+   "price": 410,
+   "stop": 395,
+   "currency": "USD",
+   "cluster": "us_megacap_tech"
+  },
+  {
+   "symbol": "NVDA",
+   "side": "long",
+   "qty": 30,
+   "price": 180,
+   "stop": 168,
+   "currency": "USD"
+  }
+ ],
+ "today": {
+  "trades": 0,
+  "orders": 0,
+  "realized_pnl": 0,
+  "planned_loss": 0
+ },
+ "correlations": {
+  "AAPL|NVDA": 0.72
+ }
+}
