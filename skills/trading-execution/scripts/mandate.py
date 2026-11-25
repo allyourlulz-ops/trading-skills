@@ -12,6 +12,9 @@ Commands
              fills.json: the broker's own orders/fills for the period (e.g. Alpaca get_orders), list of
              {"client_order_id","symbol","side","filled_qty","filled_avg_price"}. Any break HALTs.
 
+A mandate for a strategy whose pipeline.py verdict was PAPER_PROBE sets "probe": true: it must be
+paper, and each order is capped at probe_size_multiplier (default 0.25) of max_order_usd.
+
 Every order needs a client_order_id (derive it from the business action, e.g. strategy+symbol+signal
 bar). Send the same id to the broker so a retry can never fill twice. The ledger is append-only: fix a
 wrong row by recording a new row with "reverses": <client_order_id>, never by editing the file.
@@ -78,6 +81,8 @@ def check(a):
         need.append("mandate is live but the order is marked paper; confirm the account")
     if M.get("mode", "paper") == "paper" and o.get("paper") is False:
         halt.append("paper mandate cannot place a live order")
+    if M.get("probe") and M.get("mode", "paper") != "paper":
+        halt.append("probe mandates (pipeline.py PAPER_PROBE) are paper only")
 
     pnl_today = sum(r.get("pnl", 0) for r in T)
     if pnl_today <= -abs(M.get("max_daily_loss_usd", 0)):
@@ -120,8 +125,9 @@ def check(a):
         notional = float(px) * float(o.get("qty", 0))
         if not px:
             need.append("entry has no limit price; the mandate only covers limit orders")
-        if notional > M.get("max_order_usd", 0):
-            need.append("order $%.0f over the mandate's $%s per order" % (notional, M.get("max_order_usd")))
+        cap = M.get("max_order_usd", 0) * (float(M.get("probe_size_multiplier", 0.25)) if M.get("probe") else 1)
+        if notional > cap:
+            need.append("order $%.0f over the mandate's $%.0f per order%s" % (notional, cap, " (probe: quarter size)" if M.get("probe") else ""))
         spent = sum(r.get("notional", 0) for r in T if not r.get("is_exit"))
         if spent + notional > M.get("max_daily_notional_usd", 0):
             need.append("daily notional would be $%.0f, mandate allows $%s" % (spent + notional, M.get("max_daily_notional_usd")))
