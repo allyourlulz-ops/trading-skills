@@ -92,8 +92,12 @@ Optimisation always finds something, even in noise. These gates ask whether the 
 - A strategy that passes all four earns a paper account, then the staged rollout in risk-and-execution.md. Re-run Gate 4 weekly on new data; anything that starts failing goes back to research.
 Method: Timothy Masters' permutation testing for trading systems, as laid out in a @rohonchain article (2026-11-11). Reimplemented here from the description; the article's platform pitch is not part of this skill.
 
-## Validation (run scripts/validate_backtest.py)
-Report all of:
+## The gate: validate_backtest.py --manifest (fail closed)
+One manifest names every input; any missing input is a fail, never a skip. Ten checks, each pass or fail:
+alignment (dates parse, strictly increasing, gross/net/benchmark/turnover share 95% of dates; no positional pairing), lookahead (every entry on a later bar than its signal), same_bar (a bar that touched both stop and target is booked as the stop), survivorship (single instrument, or a `universe.py` OK that includes delisted names), costs (fees and slippage both declared; net = gross − 2 × turnover × bps within 0.1 bp a period), walk_forward (≥ 3 ordered, non-overlapping test folds after their train windows; half or more with net Sharpe > 0), deflated_sharpe (≥ 0.95 at the declared trial count; exact cross-trial form when `trial_sharpes` is given, else the estimation-variance approximation, labelled), cost_sweep (net Sharpe and return > 0 at 1×, 2× and 3× costs), regimes (≥ 2 regimes with 63+ periods; no regime supplies more than all of the return), train_cutoff (LLM in the loop: no test period on or before the model's training cutoff unless masked with `mask.py`; no LLM: not applicable, stated). `scripts/engine.py` writes manifest-ready gross, net, turnover and trades files with next-bar fills and stop-first bars; its engine/market-rules split follows HKUDS/Vibe-Trading's SignalEngine and BaseEngine design (studied; no code or dependencies used). Golden fixtures for each failure: `evals/golden/`.
+
+## Statistics report (validate_backtest.py flag mode, used by pipeline.py)
+Not the gate; its output says `"rigor": "not checked"`. Report all of:
 - CAGR, Sharpe, Sortino, max drawdown + duration, win rate, profit factor, expectancy, trade count.
 - Buy-and-hold over the same window ("market change") and the delta.
 - **Benchmark test that fits the sleeve** (in the verdict): net Sharpe above the benchmark's; a 70/30 benchmark/strategy mix with a higher Sharpe AND a smaller drawdown than the benchmark alone (does it add to the book?); and total return at least the benchmark's only for directional sleeves (auto: |beta| ≥ 0.3). A market-neutral sleeve at Sharpe 1.6, 8% a year, is not asked to beat a 13% index. `--sleeve` overrides the auto choice; say why.
