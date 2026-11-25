@@ -1,0 +1,14 @@
+{
+ "symbol": "BTC/USD",
+ "side": "buy",
+ "qty": 0.038,
+ "type": "limit",
+ "limit_price": 90000.0,
+ "stop_price": 86000.0,
+ "target_price": 100000.0,
+ "time_in_force": "gtc",
+ "asset_class": "crypto",
+ "client_order_id": "golden-btc-1",
+ "risk_pct": 1,
+ "paper": true
+}
