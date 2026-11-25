@@ -24,7 +24,7 @@ Output JSON with a verdict. Refuses (STALE) when quotes are more than max_skew_s
 both regular sessions (09:30-16:00 America/Toronto, weekdays). Bank of Canada Valet is a daily
 reference rate, not a quote you can trade: it is flagged and the pair verdict is capped at INDICATIVE.
 """
-import argparse, json, sys
+import argparse, json
 from datetime import datetime, time, timedelta, timezone
 
 ET = timezone(timedelta(hours=-5))  # assumed only for a timestamp with no offset
