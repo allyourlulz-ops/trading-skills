@@ -4,7 +4,10 @@ user signed once. Stdlib only. Replaces gate 2 (the typed yes) for orders it app
 (risk_check PASS) still applies to every order, and the mandate's own limits are tighter still.
 
 Commands
-  mandate.py check  --order order.json --risk risk_result.json [--mandate m.json] [--ledger l.jsonl] [--now ISO]
+  mandate.py check  --order order.json --risk risk_result.json [--token T] [--mandate m.json] [--ledger l.jsonl]
+                    [--gate-dir D] [--limits L] [--now ISO]
+             The gate token (risk_result.json's nonce, or --token) must verify for this order and the
+             mandate's mode; OVERRIDE tokens never pass here. AUTO_OK still goes through preview.py.
   mandate.py record --order order.json --ledger l.jsonl [--pnl -12.5] [--fill-price 190.1]
   mandate.py status [--mandate m.json] [--ledger l.jsonl]
   mandate.py halt   --reason "..."        (writes the HALT file next to the mandate; any run stops)
@@ -105,12 +108,17 @@ def check(a):
         need.append("order has no client_order_id (needed so retries cannot fill twice)")
     elif any(r.get("client_order_id") == coid and not r.get("reverses") for r in L):
         need.append("client_order_id %s already in the ledger: this is a retry or a duplicate" % coid)
-    if rk.get("verdict") != "PASS":
-        need.append("risk_check verdict is %s, not PASS" % rk.get("verdict"))
-    if rk.get("fingerprint") and "fingerprint" in rk:
-        from risk_check import fingerprint  # same hash as gate 1
-        if fingerprint(o) != rk["fingerprint"]:
-            need.append("order differs from the one risk_check passed")
+    if rk.get("verdict") != "pass" or (rk.get("override") or {}).get("accepted"):
+        need.append("risk_check verdict is %s, not a plain pass" % rk.get("verdict"))
+    tok = getattr(a, "token", None) or rk.get("nonce")
+    if not tok:
+        need.append("no nonce from risk_check: the hard stop needs it echoed")
+    else:
+        sys.path.insert(0, HERE)
+        from gate import verify  # check only; preview.py consumes the token
+        ok, why, _t = verify(tok, o, M.get("mode", "paper"), getattr(a, "limits", None), getattr(a, "gate_dir", None),
+                             False, a.now, consume=False)
+        need += ["gate: " + w for w in why]
     if not is_exit:
         sym = str(o.get("symbol", "")).upper()
         if [s.upper() for s in M.get("symbols", [])] and sym not in [s.upper() for s in M["symbols"]]:
@@ -236,6 +244,8 @@ if __name__ == "__main__":
             p.add_argument("--order", required=True)
         if name == "check":
             p.add_argument("--risk", required=True)
+            p.add_argument("--token", help="nonce from risk_check (default: read from --risk)")
+            p.add_argument("--gate-dir"); p.add_argument("--limits", default=os.path.join(HERE, "..", "assets", "risk-limits.json"))
         if name == "record":
             p.add_argument("--pnl", type=float)
             p.add_argument("--fill-price", type=float)
