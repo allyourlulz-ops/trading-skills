@@ -1,7 +1,29 @@
-{"mcpServers": {
-  "openbb": {"command": "uvx", "args": ["--from","openbb-mcp-server","--with","openbb","openbb-mcp","--transport","stdio","--tool-discovery"]},
-  "alpaca": {"command": "uvx", "args": ["alpaca-mcp-server"],
-    "env": {"ALPACA_API_KEY": "${ALPACA_API_KEY}", "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
-            "ALPACA_PAPER_TRADE": "true",
-            "ALPACA_TOOLSETS": "account,trading,assets,stock-data,news"}}
-}}
+{
+ "mcpServers": {
+  "openbb": {
+   "command": "uvx",
+   "args": [
+    "--from",
+    "openbb-mcp-server==2.0.1",
+    "--with",
+    "openbb==5.0.0",
+    "openbb-mcp",
+    "--transport",
+    "stdio",
+    "--tool-discovery"
+   ]
+  },
+  "alpaca": {
+   "command": "uvx",
+   "args": [
+    "alpaca-mcp-server==2.4.1"
+   ],
+   "env": {
+    "ALPACA_API_KEY": "${ALPACA_API_KEY}",
+    "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
+    "ALPACA_PAPER_TRADE": "true",
+    "ALPACA_TOOLSETS": "account,trading,assets,stock-data,crypto-data,news"
+   }
+  }
+ }
+}
