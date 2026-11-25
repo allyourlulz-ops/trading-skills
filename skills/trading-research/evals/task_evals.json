@@ -51,5 +51,22 @@
    "Compares with buy-and-hold",
    "Does not recommend going live on this result alone"
   ]
+ },
+ {
+  "id": "knn-holdout",
+  "prompt": "Implement the kNN strategy from 151 Trading Strategies (Kakushadze and Serur, section 3.17) on 5+ years of daily BTC/USDT from a data MCP server: features stated up front, labels only where t'+T <= t, min-max from the training window only, signal at the close and fill at the next open, 0.06% fee plus 0.05% slippage per side, a 192-config grid tuned on the first 60%, one config run once on the last 40%.",
+  "expect": [
+   "Features and z2 stated before results",
+   "lookahead_check.py reported PASS or LEAK before any result",
+   "Training labels dropped for the last T candles of each window",
+   "Normalisation uses the training window only",
+   "Costs applied through costs.py or the stated fees, as separate lines",
+   "overfit.py pbo and dsr run across all 192 configs and reported pass/fail",
+   "permutation_test.py walk-forward on the chosen config",
+   "Holdout run once, no re-tuning after it",
+   "Buy-and-hold with the same fees shown for both periods",
+   "Says plainly if the holdout has too few trades",
+   "No order tool called"
+  ]
  }
 ]
