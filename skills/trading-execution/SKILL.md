@@ -5,17 +5,17 @@ license: MIT
 compatibility: Alpaca MCP server v2, Questrade MCP, IBKR MCP. Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.0.0"
+  version: "1.1.0"
   sources: "day-trader-skill, ai-hedge-fund, QuantDinger, alpaca-mcp-server, finance-expert money invariants"
 ---
 
 # Trading Execution
 
-Moves real or paper money. Install it only if you want an agent to place orders. Research, backtests and validation live in `trading-research`; nothing reaches this skill until that skill's `pipeline.py` says READY_FOR_PAPER and the devil's advocate says KEEP.
+Moves real or paper money. Install it only if you want an agent to place orders. Research, backtests and validation live in `trading-research`; nothing reaches this skill until that skill's `pipeline.py` says READY_FOR_PAPER (normal paper) or PAPER_PROBE (paper only, a quarter of normal size, `"probe": true` in the mandate) and the devil's advocate says KEEP. NOT_READY never comes here.
 
 ## 1. Rules that never bend
 1. **One order at a time, three gates:** `scripts/risk_check.py` PASS for this exact order (fingerprint: symbol, side, qty, type, limit, stop; RESIZE means use `allowed_qty` and check again), then the user's explicit yes naming ticker, side and size (reject "sure", "yes to all", or a yes for another ticker or size; never batch) or a mandate AUTO_OK, then the client's own allow-once permission.
-2. **Paper first.** Never switch paper to live. Live needs the user's own live keys and `live_ack` typed by them, exactly as `mandate.py` names it.
+2. **Paper first.** Shorts and options stay off (assets/risk-limits.json) until the user turns them on and the mandate lists them; a short also needs a broker locate. Never switch paper to live. Live needs the user's own live keys and `live_ack` typed by them, exactly as `mandate.py` names it.
 3. **Exits are never blocked** by daily limits. Stops only ever move toward safety.
 4. **Nothing from background runs** unless a signed mandate returns AUTO_OK for that order.
 5. **Every order carries a client_order_id** from (strategy, symbol, signal bar), sent to the broker too. A reused id is refused.
@@ -26,7 +26,8 @@ Moves real or paper money. Install it only if you want an agent to place orders.
 ## 2. Workflows
 - **Per-order:** fresh quote, `get_clock`, account and buying power → order JSON with limit and stop → `risk_check.py --order o.json --context ctx.json --bar bar.json` → ask for the yes → place as limit or bracket → `mandate.py record`.
 - **Mandate bot:** sign `assets/mandate.example.json` with the user field by field (≤30 days, paper first) → per order: risk_check PASS → `mandate.py check` → AUTO_OK place and notify / NEEDS_YES ask / HALT stop. `status` daily; recap at the close.
-- **Kill switch:** user says stop, `mandate.py halt --reason`, or `"revoked": true`: cancel open agent orders (not resting stops), revoke the trade token.
+- **Strategy kill switch:** `scripts/strategy_health.py --equity strat.csv --fills fills.csv --limits assets/risk-limits.json` after each close for every running strategy. RETIRE (15% drawdown, 90 days under water, or slippage over 25 bps) means stop new entries for that strategy and send it back to research.
+- **Account kill switch:** user says stop, `mandate.py halt --reason`, or `"revoked": true`: cancel open agent orders (not resting stops), revoke the trade token.
 
 ## 3. Brokers (tool lists checked 2026-11-24)
 - **Alpaca:** paper keys cannot reach live funds. Allow read tools; ask for `place_stock_order`, `cancel_order_by_id`, `replace_order_by_id`, `close_position`; deny `close_all_positions`, `cancel_all_orders`, option, crypto and exercise tools unless the mandate lists that asset class. Config: `assets/mcp-config.paper-execute.json`.
