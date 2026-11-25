@@ -1,52 +1,255 @@
 #!/usr/bin/env python3
-"""Deterministic position sizing. The model never sizes; this does.
-Usage: position_size.py --entry 100 --stop 97 [--target 106] [--quote 100.4] [--limits ../assets/risk-limits.json]
-Prints JSON."""
+"""Portfolio-aware position sizing. The model never sizes; this does. Stdlib only, no network.
+Shared, byte-identical, by trading-research and trading-execution. risk_check.py calls size().
+
+Usage
+  position_size.py --symbol AAPL --entry 190 --stop 185 [--side long|short] [--target 205]
+                   [--risk-pct 2 | --risk-amount 400] --portfolio portfolio.json
+                   [--instrument instrument.json] [--asset-class equity|etf|crypto|option]
+                   [--limits ../assets/risk-limits.json] [--size-multiplier 1.0]
+
+portfolio.json (from the broker MCP server; base currency is the account's):
+  {"as_of": "...", "base_currency": "USD", "equity": 25000, "buying_power": 20000, "paper": true,
+   "fx": {"CADUSD": {"rate": 0.712, "as_of": "...", "source": "boc:valet FXCADUSD"}},   # base per 1 unit
+   "positions": [{"symbol": "MSFT", "side": "long", "qty": 10, "price": 410, "stop": 395,
+                  "multiplier": 1, "currency": "USD", "cluster": "us_megacap_tech"}],
+   "correlations": {"AAPL|MSFT": 0.78},          # optional; |rho| >= limits cluster_corr joins a cluster
+   "today": {"trades": 1, "orders": 2, "realized_pnl": -40, "planned_loss": 25}}
+instrument.json (optional; defaults come from limits.instrument_defaults[asset_class]):
+  {"currency": "USD", "multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange" | "24x7",
+   "gap_pct": 0.05, "cluster": "us_megacap_tech"}
+  Fractional shares: lot_step 0.001 (or the broker's increment). Crypto: lot_step 0.000001, session 24x7.
+  Options (long premium only): entry = premium per share, stop ignored, risk = premium x multiplier.
+
+Constraints, each a maximum quantity; the smallest binds and is named:
+  risk_per_trade   R / r                         R = min(limit %, limit amount, requested) x size_multiplier
+  gap              gap_loss_multiple x R / g     g = (|entry-stop| + entry x gap_pct) x mult x fx
+  portfolio_heat   (equity x max_heat% - open risk) / r
+  cluster          (equity x max_cluster% - open risk in the same cluster or |rho| >= cluster_corr) / r
+  daily_loss       (daily limit - planned - realized losses today) / r
+  position         (equity x max_position% - notional already held in this symbol) / n
+  order            max_order / n
+  buying_power     buying_power x (1 - cash_buffer%) / n
+  r = (|entry - stop| + entry x stop_slippage_bps/1e4) x multiplier x fx     (risk per unit, base ccy)
+  n = entry x multiplier x fx                                                (notional per unit)
+Open risk of a position = |price - stop| x qty x mult x fx; a position with no stop counts its full
+notional. Quantity is floored to lot_step. A request above a risk limit refuses (it is never silently cut).
+Exit 0 when qty >= min_qty, 1 when sizing refuses, 2 on bad input.
+"""
+from __future__ import annotations
+
 import argparse, json, math, os, sys
+from decimal import Decimal, ROUND_FLOOR
+from typing import Any, Dict, List, Optional, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_LIMITS = os.path.join(HERE, "..", "assets", "risk-limits.json")
+BUILTIN_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "equity": {"multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange", "gap_pct": 0.05},
+    "etf": {"multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange", "gap_pct": 0.03},
+    "crypto": {"multiplier": 1, "lot_step": 0.000001, "min_qty": 0.000001, "session": "24x7", "gap_pct": 0.10},
+    "option": {"multiplier": 100, "lot_step": 1, "min_qty": 1, "session": "exchange", "gap_pct": 0.0},
+}
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--entry", type=float, required=True)
-    ap.add_argument("--stop", type=float, required=True)
-    ap.add_argument("--target", type=float)
-    ap.add_argument("--quote", type=float, help="fresh quote <15 min old; risk uses max(entry, quote) for longs")
-    ap.add_argument("--side", choices=["long", "short"], default="long")
-    ap.add_argument("--limits", default=os.path.join(HERE, "..", "assets", "risk-limits.json"))
-    a = ap.parse_args()
-    L = json.load(open(a.limits))
-    if a.side == "short" and not L.get("allow_short"):
-        return out({"ok": False, "reason": "shorting disabled in limits"})
-    eff = a.entry
-    if a.quote:
-        eff = max(a.entry, a.quote) if a.side == "long" else min(a.entry, a.quote)
-    risk_ps = (eff - a.stop) if a.side == "long" else (a.stop - eff)
-    if risk_ps <= 0:
-        return out({"ok": False, "reason": "stop must be on the losing side of entry"})
-    deployable = L["budget"] * (1 - L.get("cash_buffer_pct", 0) / 100)
-    caps = {
-        "by_max_loss": L["max_loss_per_trade_usd"] / risk_ps,
-        "by_max_order": L["max_order_usd"] / eff,
-        "by_max_position": deployable * L["max_position_pct"] / 100 / eff,
+
+class SizingError(ValueError):
+    """Bad or missing input: sizing refuses rather than guessing."""
+
+
+def limit_money(L: Dict[str, Any], key: str, base: str) -> Optional[float]:
+    """A money limit in the base currency. Legacy *_usd keys count only when the base is USD."""
+    if key in L:
+        return float(L[key])
+    if key + "_usd" in L:
+        if base != "USD":
+            raise SizingError(f"limit {key}_usd is in USD but the account base is {base}: set {key}")
+        return float(L[key + "_usd"])
+    return None
+
+
+def fx_rate(portfolio: Dict[str, Any], ccy: str, base: str) -> Tuple[float, Optional[Dict[str, Any]]]:
+    """Base units per 1 unit of ccy. Refuses when the rate is not recorded with a source and time."""
+    if ccy == base:
+        return 1.0, None
+    fx = (portfolio.get("fx") or {}).get(ccy + base)
+    if not fx or not fx.get("rate") or not fx.get("as_of") or not fx.get("source"):
+        raise SizingError(f"need fx {ccy}{base} with rate, as_of and source in the portfolio")
+    return float(fx["rate"]), fx
+
+
+def floor_step(x: float, step: float) -> float:
+    if x <= 0:
+        return 0.0
+    s = Decimal(str(step))
+    return float((Decimal(repr(x)) / s).to_integral_value(rounding=ROUND_FLOOR) * s)
+
+
+def instrument_spec(L: Dict[str, Any], asset_class: str, given: Optional[Dict[str, Any]], base: str) -> Dict[str, Any]:
+    spec = dict(BUILTIN_DEFAULTS.get(asset_class) or {})
+    if not spec:
+        raise SizingError(f"unknown asset_class {asset_class!r}")
+    spec.update((L.get("instrument_defaults") or {}).get(asset_class, {}))
+    spec.update(given or {})
+    spec.setdefault("currency", base)
+    for k in ("multiplier", "lot_step", "min_qty"):
+        if float(spec[k]) <= 0:
+            raise SizingError(f"instrument {k} must be > 0")
+    return spec
+
+
+def position_risk(p: Dict[str, Any], portfolio: Dict[str, Any], base: str) -> Tuple[float, float]:
+    """(open risk, notional) of one held position in the base currency."""
+    fx, _ = fx_rate(portfolio, p.get("currency", base), base)
+    m = float(p.get("multiplier", 1)); q = abs(float(p["qty"])); px = float(p["price"])
+    notional = q * px * m * fx
+    if p.get("stop") is None:
+        return notional, notional
+    return abs(px - float(p["stop"])) * q * m * fx, notional
+
+
+def correlated(sym: str, other: str, portfolio: Dict[str, Any], thr: float) -> bool:
+    c = portfolio.get("correlations") or {}
+    rho = c.get(f"{sym}|{other}", c.get(f"{other}|{sym}"))
+    return rho is not None and abs(float(rho)) >= thr
+
+
+def size(symbol: str, side: str, entry: float, stop: Optional[float], portfolio: Dict[str, Any],
+         limits: Dict[str, Any], asset_class: str = "equity", instrument: Optional[Dict[str, Any]] = None,
+         risk_pct: Optional[float] = None, risk_amount: Optional[float] = None, target: Optional[float] = None,
+         size_multiplier: float = 1.0) -> Dict[str, Any]:
+    """Pure: returns {"ok", "qty", "binding_constraint", "constraints", ...}. Raises SizingError on bad input."""
+    L, sym = limits, symbol.upper()
+    base = str(portfolio.get("base_currency") or L.get("base_currency") or "").upper()
+    if not base:
+        raise SizingError("portfolio.base_currency is required")
+    equity = portfolio.get("equity")
+    if equity is None or float(equity) <= 0:
+        raise SizingError("portfolio.equity is required and must be > 0")
+    equity = float(equity)
+    if side not in ("long", "short"):
+        raise SizingError("side must be long or short")
+    if entry is None or entry <= 0:
+        raise SizingError("entry must be > 0")
+    spec = instrument_spec(L, asset_class, instrument, base)
+    fx, fx_used = fx_rate(portfolio, str(spec["currency"]).upper(), base)
+    m = float(spec["multiplier"])
+    reasons: List[str] = []
+    if asset_class == "option":
+        if side != "long":
+            raise SizingError("options: long premium only (defined risk)")
+        dist = entry  # premium is the most a long option can lose
+    else:
+        if stop is None:
+            raise SizingError("a stop is required to size by risk")
+        dist = (entry - stop) if side == "long" else (stop - entry)
+        if dist <= 0:
+            raise SizingError(f"stop must be on the losing side of entry for a {side}")
+    slip = 0.0 if asset_class == "option" else entry * float(L.get("stop_slippage_bps", 10)) / 1e4
+    r = (dist + slip) * m * fx
+    n = entry * m * fx
+    gap_pct = float(spec.get("gap_pct", 0))
+    g = (dist + entry * gap_pct) * m * fx if asset_class != "option" else r
+
+    pct_cap = float(L.get("max_risk_per_trade_pct", 1.0))
+    amt_cap = limit_money(L, "max_loss_per_trade", base)
+    asks = {"limit_pct": equity * pct_cap / 100}
+    if amt_cap is not None:
+        asks["limit_amount"] = amt_cap
+    if risk_pct is not None:
+        if risk_pct <= 0:
+            raise SizingError("risk_pct must be > 0")
+        asks["requested_pct"] = equity * risk_pct / 100
+        if risk_pct > pct_cap:
+            reasons.append(f"requested {risk_pct}% risk exceeds max_risk_per_trade_pct {pct_cap}%")
+    if risk_amount is not None:
+        if risk_amount <= 0:
+            raise SizingError("risk_amount must be > 0")
+        asks["requested_amount"] = risk_amount
+        if amt_cap is not None and risk_amount > amt_cap:
+            reasons.append(f"requested risk {risk_amount} {base} exceeds max_loss_per_trade {amt_cap}")
+    R = min(asks.values()) * max(0.0, min(1.0, size_multiplier))
+
+    held = [p for p in portfolio.get("positions", []) if abs(float(p.get("qty", 0))) > 0]
+    risks = {i: position_risk(p, portfolio, base) for i, p in enumerate(held)}
+    open_risk = sum(v[0] for v in risks.values())
+    thr = float(L.get("cluster_corr", 0.7))
+    cl = spec.get("cluster")
+    in_cluster = [i for i, p in enumerate(held) if p["symbol"].upper() != sym and (
+        (cl and p.get("cluster") == cl) or correlated(sym, p["symbol"].upper(), portfolio, thr))]
+    same = [i for i, p in enumerate(held) if p["symbol"].upper() == sym]
+    cluster_risk = sum(risks[i][0] for i in in_cluster + same)
+    held_notional = sum(risks[i][1] for i in same)
+    today = portfolio.get("today") or {}
+    daily_cap = limit_money(L, "max_daily_loss", base)
+    if daily_cap is None:
+        daily_cap = equity * float(L.get("max_daily_loss_pct", 3.0)) / 100
+    used_today = float(today.get("planned_loss", 0)) + max(0.0, -float(today.get("realized_pnl", 0)))
+    bp = portfolio.get("buying_power")
+
+    C: Dict[str, float] = {
+        "risk_per_trade": R / r,
+        "gap": float(L.get("gap_loss_multiple", 2.0)) * R / g if g > 0 else math.inf,
+        "portfolio_heat": (equity * float(L.get("max_portfolio_heat_pct", 6.0)) / 100 - open_risk) / r,
+        "cluster": (equity * float(L.get("max_cluster_risk_pct", 3.0)) / 100 - cluster_risk) / r,
+        "daily_loss": (daily_cap - used_today) / r,
+        "position": (equity * float(L.get("max_position_pct", 25)) / 100 - held_notional) / n,
     }
-    qty = math.floor(min(caps.values()))
-    res = {"ok": qty > 0, "qty": qty, "effective_entry": eff, "risk_per_share": round(risk_ps, 4),
-           "dollar_risk": round(qty * risk_ps, 2), "notional": round(qty * eff, 2),
-           "binding_cap": min(caps, key=caps.get), "caps": {k: math.floor(v) for k, v in caps.items()}}
-    if a.target:
-        reward = (a.target - eff) if a.side == "long" else (eff - a.target)
-        rr = reward / risk_ps
-        res["reward_risk"] = round(rr, 2)
-        res["breakeven_win_rate"] = round(1 / (1 + rr), 3) if rr > 0 else None
-        if rr < L.get("min_reward_risk", 0):
-            res["ok"] = False; res["reason"] = f"reward/risk {rr:.2f} below min {L['min_reward_risk']}"
-    if qty * eff < L.get("min_order_usd", 0):
-        res["ok"] = False; res.setdefault("reason", "order below minimum size")
-    out(res)
+    max_order = limit_money(L, "max_order", base)
+    if max_order is not None:
+        C["order"] = max_order / n
+    if bp is None:
+        raise SizingError("portfolio.buying_power is required")
+    C["buying_power"] = float(bp) * (1 - float(L.get("cash_buffer_pct", 0)) / 100) / n
+    step, min_q = float(spec["lot_step"]), float(spec["min_qty"])
+    binding = min(C, key=C.get)
+    qty = floor_step(max(0.0, C[binding]), step)
+    ok = qty >= min_q and not reasons
+    if qty < min_q:
+        reasons.append(f"{binding} leaves {qty} < min_qty {min_q}")
+    min_order = limit_money(L, "min_order", base)
+    if ok and min_order is not None and qty * n < min_order:
+        ok = False; reasons.append(f"notional {qty * n:.2f} {base} below min_order {min_order}")
+    res: Dict[str, Any] = {
+        "ok": ok, "symbol": sym, "side": side, "asset_class": asset_class, "qty": qty,
+        "binding_constraint": binding,
+        "constraints": {k: (floor_step(v, step) if v > 0 and math.isfinite(v) else (0.0 if v <= 0 else None))
+                        for k, v in C.items()},
+        "risk_budget": round(R, 2), "risk_per_unit": round(r, 6), "notional_per_unit": round(n, 6),
+        "dollar_risk": round(qty * r, 2), "gap_loss": round(qty * g, 2), "notional": round(qty * n, 2),
+        "base_currency": base, "instrument_currency": spec["currency"], "fx": fx, "fx_source": fx_used,
+        "multiplier": m, "lot_step": step, "session": spec["session"],
+        "open_risk_before": round(open_risk, 2), "heat_after_pct": round((open_risk + qty * r) / equity * 100, 3),
+        "cluster_members": [held[i]["symbol"] for i in in_cluster], "reasons": reasons,
+    }
+    if target is not None:
+        reward = (target - entry) if side == "long" else (entry - target)
+        rr = reward / dist if dist else 0.0
+        cost_r = slip / dist if dist else 0.0
+        res["reward_risk"] = round(rr, 3)
+        res["breakeven_win_rate"] = round((1 + cost_r) / (1 + rr), 4) if rr > 0 else None
+    return res
 
-def out(d):
-    print(json.dumps(d, indent=2)); sys.exit(0 if d.get("ok") else 1)
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--symbol", required=True); ap.add_argument("--entry", type=float, required=True)
+    ap.add_argument("--stop", type=float); ap.add_argument("--target", type=float)
+    ap.add_argument("--side", choices=["long", "short"], default="long")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--risk-pct", type=float); g.add_argument("--risk-amount", type=float)
+    ap.add_argument("--portfolio", required=True); ap.add_argument("--instrument")
+    ap.add_argument("--asset-class", default="equity", choices=sorted(BUILTIN_DEFAULTS))
+    ap.add_argument("--limits", default=DEFAULT_LIMITS)
+    ap.add_argument("--size-multiplier", type=float, default=1.0)
+    a = ap.parse_args()
+    try:
+        res = size(a.symbol, a.side, a.entry, a.stop, json.load(open(a.portfolio)), json.load(open(a.limits)),
+                   a.asset_class, json.load(open(a.instrument)) if a.instrument else None,
+                   a.risk_pct, a.risk_amount, a.target, a.size_multiplier)
+    except (SizingError, KeyError, ValueError, OSError) as e:
+        print(json.dumps({"ok": False, "error": str(e)}, indent=2)); sys.exit(2)
+    print(json.dumps(res, indent=2)); sys.exit(0 if res["ok"] else 1)
+
 
 if __name__ == "__main__":
     main()
