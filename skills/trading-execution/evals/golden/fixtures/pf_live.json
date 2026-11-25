@@ -1,0 +1,19 @@
+{
+ "as_of": "2026-11-25T10:30:00-05:00",
+ "base_currency": "USD",
+ "equity": 25000,
+ "buying_power": 20000,
+ "paper": false,
+ "clock": {
+  "is_open": true,
+  "source": "alpaca:get_clock",
+  "as_of": "2026-11-25T10:30:00-05:00"
+ },
+ "positions": [],
+ "today": {
+  "trades": 0,
+  "orders": 0,
+  "realized_pnl": 0,
+  "planned_loss": 0
+ }
+}
