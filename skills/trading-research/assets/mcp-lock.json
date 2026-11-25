@@ -1,0 +1,183 @@
+{
+ "lock_version": 1,
+ "checked": "2026-11-25",
+ "_note": "Versions and sha256 come from PyPI/npm/Docker Hub metadata read 2026-11-25; not installed or run here. sha256 lists the published files of the top-level package (wheel and sdist). locks/*.txt pin every transitive dependency with hashes (uv pip compile --generate-hashes --python-version 3.12 --universal). 'tools' stays empty until the user saves a server's tools/list, reviews the descriptions, and records mcp_lock.py snapshot output here. Optional servers are pinned but not in the shipped configs. The agent never edits this file.",
+ "servers": {
+  "openbb": {
+   "registry": "pypi",
+   "mode": "data",
+   "requirements_lock": "locks/openbb.txt",
+   "packages": {
+    "openbb-mcp-server": {
+     "version": "2.0.1",
+     "sha256": [
+      "35f4816b263e95cfc63fa467543f279c0e1a047b714c434faf2bffaf68d5d989",
+      "6efca7cdf0a4ae205fb8eb8e2c35baf4558299e1d9a3ba5874d57f82ceae6a4e"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-28"
+    },
+    "openbb": {
+     "version": "5.0.0",
+     "sha256": [
+      "98a41d63fb0de1cd0267e208393fb927fa6675baf613c125ee943c3014a34755",
+      "b664dcbb3d057d46c9ae402349d0ddc638905009f684038a217e4e594c29f4f9"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-29"
+    }
+   },
+   "optional_packages": {
+    "openbb-tmx": {
+     "version": "2.0.0",
+     "sha256": [
+      "5c37b042c8f881fa6057a27dca41bb5c226f91820f39ff2229dc7ec168247839",
+      "89191ebcab26502e72fadbc29f8e5af26d80a7921bd9e2d59c08dee85358fc59"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-28"
+    }
+   },
+   "tools": {}
+  },
+  "alpaca": {
+   "registry": "pypi",
+   "mode": "from_config: ALPACA_PAPER_TRADE must be the literal \"true\" (paper) or \"false\" (live)",
+   "requirements_lock": "locks/alpaca.txt",
+   "packages": {
+    "alpaca-mcp-server": {
+     "version": "2.4.1",
+     "sha256": [
+      "c86d382d91d99c894ca2e5e1b64c64a293e6ae02f7ae1248b8489a37ab6c04b7",
+      "f80666a2951dd8d1a096b0ca188ca7f1c0f693a44cfad85bb2ff567e9e862725"
+     ],
+     "license": "MIT",
+     "uploaded": "2026-11-04"
+    }
+   },
+   "endpoints": {
+    "paper": "https://paper-api.alpaca.markets",
+    "live": "https://api.alpaca.markets",
+    "data": "https://data.alpaca.markets"
+   },
+   "tools": {}
+  },
+  "vibe-trading": {
+   "registry": "pypi",
+   "mode": "data",
+   "requirements_lock": "locks/vibe-trading.txt",
+   "packages": {
+    "vibe-trading-ai": {
+     "version": "0.1.19",
+     "sha256": [
+      "6131b86d53428ce9443aecf390aa2966eb4f673bbe6be4239f49b30a14c343c3",
+      "a104c78673bec45f1ecf59246a57452dcaea4d748a6f3df36f80d4d7755e7015"
+     ],
+     "license": "MIT",
+     "uploaded": "2026-11-05"
+    }
+   },
+   "tools": {}
+  }
+ },
+ "optional_servers": {
+  "sec-edgar": {
+   "registry": "docker",
+   "mode": "data",
+   "image": "stefanoamorelli/sec-edgar-mcp",
+   "tag": "1.1.0",
+   "digest": "sha256:563d7c51dde1690838b6821786e49525574d10ba73a806fdef0cd99543d2e92a",
+   "license": "AGPL-3.0 (run as a separate server; never vendor its code)",
+   "tools": {}
+  },
+  "prediction-markets": {
+   "registry": "npm",
+   "mode": "data",
+   "packages": {
+    "prediction-markets-mcp": {
+     "version": "1.0.3",
+     "uploaded": "2026-01-16",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "canli": {
+   "registry": "npm",
+   "mode": "data",
+   "packages": {
+    "canli-mcp": {
+     "version": "0.22.0",
+     "uploaded": "2026-11-08",
+     "license": "MIT",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "backtester": {
+   "registry": "pypi",
+   "mode": "data",
+   "packages": {
+    "backtester-mcp": {
+     "version": "0.1.0",
+     "uploaded": "2026-04-14",
+     "license": "Apache-2.0",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "quantdinger": {
+   "registry": "pypi",
+   "mode": "data",
+   "packages": {
+    "quantdinger-mcp": {
+     "version": "0.6.2",
+     "uploaded": "2026-09-11",
+     "license": "Apache-2.0",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "risk-aware-trading-agents": {
+   "registry": "pypi",
+   "mode": "data",
+   "packages": {
+    "risk-aware-trading-agents": {
+     "version": "0.8.0",
+     "uploaded": "2026-11-14",
+     "license": "MIT",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "tradingview": {
+   "registry": "pypi",
+   "mode": "data",
+   "packages": {
+    "tradingview-mcp-server": {
+     "version": "0.8.1",
+     "uploaded": "2026-08-24",
+     "license": "UNDECLARED on PyPI: check the repo before use",
+     "sha256": []
+    }
+   },
+   "tools": {}
+  },
+  "questrade": {
+   "registry": "hosted",
+   "mode": "live",
+   "url": "see references/canada.md; hosted, version cannot be pinned: record tool hashes",
+   "tools": {}
+  },
+  "ibkr": {
+   "registry": "hosted",
+   "mode": "live",
+   "url": "https://api.ibkr.com/v1/api/mcp",
+   "tools": {}
+  }
+ }
+}
