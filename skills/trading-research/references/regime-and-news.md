@@ -26,7 +26,7 @@ The size column multiplies the size from position_size.py; risk clamps may only 
 - Tranches: build each position 50% / 25% / 25%. A later tranche needs a deeper support touch or a winning position.
 - Quality gate for dip buys: revenue growth, margins, free cash flow, leverage and EPS beats from as-filed data. No gate pass, no dip buy.
 - No panic selling: in uncertain or risk_off regimes, hold. Forced exits only on a red flag the company itself confirms (its own 8-K or press release) or the mandate's hard stop.
-- Kill switch and halt: the HALT file in mandate mode.
+- Kill switch and halt: the HALT file in mandate mode (trading-execution).
 
 ## 3. Verified news
 - A story counts only for the company it names.
@@ -50,5 +50,5 @@ The size column multiplies the size from position_size.py; risk clamps may only 
 
 ## 6. Skill-design lessons applied here (FinSkillBench)
 - Numbers go through scripts, not through the model. Pass file paths and let the script read full-precision inputs; a matrix retyped by a model changes the answer.
-- Compliance is checked against the signed mandate file itself (`mandate.py check` reads assets/mandate.json), never against the agent's own restatement. In the benchmark's nine-stage desk test, an agent that parsed a mandate into its own words built near-optimal books that broke the mandate 33 times out of 33 while every internal check reported success.
+- Compliance is checked against the signed mandate file itself (`mandate.py check` in trading-execution reads its assets/mandate.json), never against the agent's own restatement. In the benchmark's nine-stage desk test, an agent that parsed a mandate into its own words built near-optimal books that broke the mandate 33 times out of 33 while every internal check reported success.
 - Keep reference files short and load only the one the task needs; extra reading competes with doing.
