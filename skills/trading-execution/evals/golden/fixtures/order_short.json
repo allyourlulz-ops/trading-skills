@@ -1,0 +1,14 @@
+{
+ "symbol": "TSLA",
+ "side": "sell",
+ "qty": 10,
+ "type": "limit",
+ "limit_price": 350.0,
+ "stop_price": 365.0,
+ "target_price": 320.0,
+ "time_in_force": "day",
+ "asset_class": "equity",
+ "order_class": "bracket",
+ "client_order_id": "golden-tsla-1",
+ "paper": true
+}
