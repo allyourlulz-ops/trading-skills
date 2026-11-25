@@ -7,6 +7,7 @@
 4. On an error keep the error text and whatever was already fetched; never fill gaps.
 5. Before quoting an exact price/indicator, take one verified snapshot (latest quote + latest bar) and treat it as source of truth for the report.
 6. Live news/social reflects *now*, even when analysing a past date. Don't use it in historical runs.
+7. **Write the data contract** (`scripts/data_contract.py`) for every price behind a size or a backtest: source tool, as-of and last bar end in ISO 8601 with offset, timeframe, adjustment and currency. Adjustment policy: quotes, stops and signals used for sizing are `raw` or `split` (orders fill in raw prices; dividend-adjusted history moves the stop); backtest returns are `split_div`. No provider default is assumed: the OpenBB yfinance provider and Alpaca bars both take an adjustment argument, so pass it and record it. Alpaca's free feed is IEX only; say `feed: iex` in the source. A stale, unaligned, future-dated or offset-less series fails the gate.
 
 ## OpenBB Python equivalents
 ```python
