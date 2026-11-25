@@ -1,0 +1,42 @@
+[
+ {
+  "query": "buy 10 shares of AAPL at a 190 limit with a stop at 182 in my paper account",
+  "should_trigger": true
+ },
+ {
+  "query": "set up a paper bot that trades my momentum strategy on 5 ETFs with a 2% daily loss stop",
+  "should_trigger": true
+ },
+ {
+  "query": "halt the bot, something looks wrong with the fills",
+  "should_trigger": true
+ },
+ {
+  "query": "cancel my open order on SHOP.TO",
+  "should_trigger": true
+ },
+ {
+  "query": "reconcile today's bot ledger against my Alpaca fills",
+  "should_trigger": true
+ },
+ {
+  "query": "bull vs bear case on NVDA",
+  "should_trigger": false
+ },
+ {
+  "query": "backtest a 20/50 SMA cross on SPY",
+  "should_trigger": false
+ },
+ {
+  "query": "what does a limit order mean",
+  "should_trigger": false
+ },
+ {
+  "query": "file my taxes",
+  "should_trigger": false
+ },
+ {
+  "query": "is this pump.fun token a rug",
+  "should_trigger": false
+ }
+]
