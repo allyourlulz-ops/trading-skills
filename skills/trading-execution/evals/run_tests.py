@@ -39,6 +39,7 @@ def mcheck(order, **kw):
 base = {"symbol": "SPY", "side": "buy", "qty": 1, "limit_price": 200, "stop_price": 190, "strategy": "ema9-pullback-v2", "client_order_id": "c1", "paper": True}
 for name, cond in (("probe small order AUTO_OK", mcheck(base)["verdict"] == "AUTO_OK"),
                    ("probe order over quarter size NEEDS_YES", mcheck(dict(base, qty=2))["verdict"] == "NEEDS_YES"),
+                   ("legacy *_usd mandate keys still cap", mcheck(dict(base, qty=2), max_order=None, max_order_usd=1000)["verdict"] == "NEEDS_YES"),
                    ("probe live mandate HALT", mcheck(base, mode="live")["verdict"] == "HALT")):
     print(("PASS " if cond else "FAIL ") + name); fails += [] if cond else [name]
 # golden fixtures: position_size, risk_check, gate, preview, data_contract, mcp_lock (failure paths included)
