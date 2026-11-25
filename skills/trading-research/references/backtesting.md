@@ -75,10 +75,10 @@ Method adapted from roan-maverick/MIT-trader-skill's strategy hunter (MIT code, 
 4. **Control false discoveries.** Benjamini-Hochberg at 10% on the in-sample one-sided p-values across EVERY variant tried; report the Bonferroni bar too. Each new variant raises the bar for all of them.
 5. **Approve** only a BH discovery with ≥30 in-sample trades AND ≥10 out-of-sample trades with positive excess and t ≥ 1. A discovery that dies out of sample is FAILED_OOS, the classic overfit.
 6. **If nothing is approved, stand down** and say so plainly. On liquid US stocks simple rules usually fail out of sample; that is the screen working.
-Feed survivors into the full backtest + `scripts/validate_backtest.py`, with `--trials` set to the number of variants screened. For the maths behind each step, the companion `mit-trader` skill's lecture notes (CC BY-NC-SA 4.0, not bundled here) map them to 18.S096 lectures.
+Feed survivors into the full backtest + `scripts/validate_backtest.py --trials auto` (the trial ledger counts every variant screened). Pass `--tried N` when some variants produced no trades, so they still count in the correction; `discover.py` does this for you. For the maths behind each step, the companion `mit-trader` skill's lecture notes (CC BY-NC-SA 4.0, not bundled here) map them to 18.S096 lectures.
 
 ## Ablation (one rule at a time)
-Build a strategy up from its base signal, adding one filter per run and logging the equity, drawdown and trade count each time. Keep a filter only if it improves out-of-sample results by more than noise; count every run in `--trials`. A filter that only helps in-sample is curve-fitting.
+Build a strategy up from its base signal, adding one filter per run and logging the equity, drawdown and trade count each time. Keep a filter only if it improves out-of-sample results by more than noise; log every run in the trial ledger. A filter that only helps in-sample is curve-fitting.
 
 ## Permutation gates (run scripts/permutation_test.py)
 Optimisation always finds something, even in noise. These gates ask whether the optimised result beats the same optimisation run on shuffled price paths (same start, end and bar-return distribution, every real pattern destroyed). Pull closes through the data MCP server (OpenBB `equity_price_historical`, Alpaca stock/crypto bars, CCXT), save `date,close` to CSV, then run locally. No outside platform is needed.
@@ -88,7 +88,7 @@ Optimisation always finds something, even in noise. These gates ask whether the 
 - **Plateau check** (same run): a real edge keeps most of its score one grid step away (`PLATEAU`); a `SPIKE` is a lucky setting, reject it. A plateau alone proves nothing: noise can be flat too.
 - **Gate 3, walk-forward:** re-optimise on the trailing window (`--train`, e.g. 1008 daily bars), trade the next `--test` bars (e.g. 21), roll forward. Worse than in-sample is normal; it must still be worth trading.
 - **Gate 4, walk-forward permutation:** `--mode walkforward`; only bars after the first training window are shuffled. Pass at p < 0.05 with ~1 year out of sample, p < 0.01 with 2+ years. Slow: start with `--perms 200`, confirm finalists at 1000.
-- Testing 100 ideas against the same walk-forward year and keeping the best overfits it anyway. Keep a log of every idea and count it in `--trials`.
+- Testing 100 ideas against the same walk-forward year and keeping the best overfits it anyway. Log every idea in the trial ledger (`scripts/trial_ledger.py`).
 - A strategy that passes all four earns a paper account, then the staged rollout in risk-and-execution.md. Re-run Gate 4 weekly on new data; anything that starts failing goes back to research.
 Method: Timothy Masters' permutation testing for trading systems, as laid out in a @rohonchain article (2026-11-11). Reimplemented here from the description; the article's platform pitch is not part of this skill.
 
@@ -96,11 +96,13 @@ Method: Timothy Masters' permutation testing for trading systems, as laid out in
 Report all of:
 - CAGR, Sharpe, Sortino, max drawdown + duration, win rate, profit factor, expectancy, trade count.
 - Buy-and-hold over the same window ("market change") and the delta.
+- **Benchmark test that fits the sleeve** (in the verdict): net Sharpe above the benchmark's; a 70/30 benchmark/strategy mix with a higher Sharpe AND a smaller drawdown than the benchmark alone (does it add to the book?); and total return at least the benchmark's only for directional sleeves (auto: |beta| ≥ 0.3). A market-neutral sleeve at Sharpe 1.6, 8% a year, is not asked to beat a 13% index. `--sleeve` overrides the auto choice; say why.
+- Trials from the ledger (`--trials auto`). A hand-typed count is flagged; no ledger is flagged louder.
 - Mean-trade t-test p-value (optimistic: trades aren't i.i.d.).
 - Bootstrap 95% CI of Sharpe.
 - Deflated Sharpe ratio given the number of variants tried (multiple testing).
 - Walk-forward (≥5 windows) and a final out-of-sample holdout with frozen parameters.
-- Costs: spread bps, commission, square-root impact `k·σ_daily·sqrt(order/ADV)`.
+- Costs: spread bps, commission, square-root impact `k·σ_daily·sqrt(order/ADV)` (`costs.py`, with `adv_frac` and `sigma` columns), the cost multiples (it must stay above zero at 3× costs), the cost ladder and the capacity curve.
 - Reproducibility log: strategy version/hash, symbols, dates, price basis (adjusted?), costs, seed, data snapshot.
 State plainly: "Backtests overstate live results."
 
@@ -113,11 +115,11 @@ Read this section when more than one variant, parameter set or rule was tried. P
 - Optional local cross-checks (user installs, see mcp-servers.md): canli-mcp and backtester-mcp report deflated Sharpe and PBO too. When they disagree with overfit.py by more than rounding, show both and treat the result as unverified.
 
 ## Edge or exposure?
-A long-only book in a bull market beats most coin-flip monkeys on beta alone (examples/real-data-run.md: 98.8th percentile, yet 96% of the return was market). Read monkey_test and attribution together.
+A long-only book in a bull market beats most coin-flip monkeys on beta alone (examples/real-data-run.md: momentum at the 98.9th percentile on direction, 64th with exposure held equal). Use `monkey_test.py --mode beta_matched --weights W --prices P`: same weights, dates and net exposure, random names. It isolates selection from beta. Read it with attribution.
  (run scripts/monkey_test.py and scripts/attribution.py)
 A good return can come from being in a rising market, from a style that happened to win, or from luck. Run both checks on paper or backtest results before calling anything an edge:
 1. **Coin-flip test** (`monkey_test.py --positions positions.csv`): 2,048 monkeys keep every position at the same times and sizes and flip a coin for the side. EDGE needs the real result to beat all but one of them; ANTI_EDGE means the calls were reliably wrong; LUCK is everything between. Use `--group day` when a day's trades are one bet. This only tests direction; timing and size are held fixed. In Alpha Arena season 1.5 (Nof1, 19 Nov to 3 Dec 2025), the account inferred as the winner, Grok 4.20, was +32.5% yet sat at the 82.6th percentile of its monkeys, and none of the 32 accounts cleared the bar (oaia.fun, 10 Nov 2026; wallet labels inferred).
-2. **Attribution** (`attribution.py --returns port.csv --factors factors.csv`): splits return into market, style (size, momentum, value, low volatility, quality) and selection. SELECTION_ALPHA needs selection t >= 2, information ratio >= 0.5 a year and > 52% of days positive; otherwise BETA_OR_STYLE, which a cheap ETF mix would have matched. Build the factor returns from MCP price data (long top fifth, short bottom fifth, rebalanced on a fixed day); `--window 60` refits on a trailing window so no future betas leak in. KTD-Fin (arXiv 2605.28359, 2026) found LLM agents on CSI300 were mostly "style harvesters" with negative selection alpha despite high returns.
+2. **Attribution** (`attribution.py --returns port.csv --factors factors.csv`): splits return into market, style (size, momentum, value, low volatility, quality) and selection. SELECTION_ALPHA needs selection t >= 2, information ratio >= 0.5 a year and > 52% of days positive; otherwise BETA_OR_STYLE, which a cheap ETF mix would have matched. Use independent factor proxies (`factor_proxies.py`: mkt SPY; size IWM, momentum MTUM, low volatility USMV, quality QUAL, value VLUE, each minus SPY). Factors built from the strategy's own universe on its own rebalance day share its noise and leave a day-of-week artifact; if you must build them, stagger their rebalance day away from the strategy's (`premia_signals.py --tranches`); `--window 60` refits on a trailing window so no future betas leak in. KTD-Fin (arXiv 2605.28359, 2026) found LLM agents on CSI300 were mostly "style harvesters" with negative selection alpha despite high returns.
 3. **Masked replay for LLM strategies** (`mask.py mask --level blinded`): replace tickers with `asset_NNN` and dates with `day_+N` before the model sees the data, unmask its tool arguments with the key, and re-mask the results. Compare bright vs blinded runs: a strategy whose edge disappears under masking was recalling history, not reasoning. Run `mask.py check` on every prompt file; LEAK blocks the run. News text is not masked by the script; leave it out of blinded runs.
 Report all three next to buy-and-hold. LUCK or BETA_OR_STYLE is a valid, honest result (rule 8).
 
@@ -137,3 +139,19 @@ Read before trusting any historical result, and before any result that uses news
 
 ## Fixed-seed session replay (day-trader-skill Time Machine)
 For an intraday plan: build a pool of the last 60 days of 5-min sessions as OHLC ratios to prior close, resample same-time-of-day bars (±2), stop checked before target (a bar touching both = stop), seed 19, 10,000 paths. Refuse with <20 sessions. Verdict vs break-even win rate 1/(1+R): within 5 pts "coin flip", 5–15 "leans", >15 "strongly".
+
+## Universe (run scripts/universe.py)
+- **No cross-sectional signal is judged on fewer than 100 point-in-time names, delisted included.** Ranking ten correlated ETFs is close to a coin toss, so the gates look harsh when they are really under-powered. `pipeline.py --cross-sectional` needs a `universe.py` result and stops on TOO_NARROW.
+- Default universe: top 1,000 US names by 20-day average dollar volume, membership recomputed on each rebalance date from rows before it. Feed `PREFIX_members.csv` to `premia_signals.py --universe`.
+- **Survivorship:** the panel must hold names that later delisted, merged or were renamed. SURVIVORSHIP_SUSPECT means none left the panel, so the source probably dropped dead names. Free price feeds often do; SEC EDGAR filings list delisted issuers and their tickers, so pull those names' history where the price tool still has it, and say plainly what is missing. Delisting returns are usually missing too (Shumway 1997); a delisted holding exits at its last close.
+- The 10-ETF set in examples/ is for macro and regime illustration only.
+- **Two regimes at least.** `pipeline.py` splits net returns by benchmark volatility tercile (calm, normal, stressed: a VIX-tercile proxy) or by your own `--regimes` file (for example yield-curve state from Bank of Canada Valet or FRED through an MCP tool). It must make money in at least two regimes with 126 or more days each, or be declared regime-conditional (`--regime-conditional LABEL`) and run only in that regime.
+
+## Promotion ladder (scripts/pipeline.py)
+- **NOT_READY:** a mechanical gate failed (hard gates, look-ahead LEAK, PBO, permutation, net Sharpe at or below zero at 3× costs, ANTI_EDGE, TOO_NARROW universe).
+- **PAPER_PROBE:** mechanics clean, alpha unproven (deflated Sharpe under 0.95, a benchmark test failed, LUCK, BETA_OR_STYLE, one regime, or a confirming gate not run). Paper trade at a quarter of normal size to buy forward data: the only unbiased sample you will ever get. Without a probe, a skill that never promotes never learns anything. Review with `strategy_health.py` after 63 trading days, then re-run the pipeline on backtest plus paper.
+- **READY_FOR_PAPER:** every gate ran and passed, including the look-ahead and permutation results passed in.
+- Live money is always the user's call, in trading-execution, after paper.
+
+## Positive controls (evals/benchmark_suite.md)
+The gates are checked against strategies with known answers: noise must fail, a strong premium at 3× costs must pass, a leak must be caught, a SPY clone must read BETA_OR_STYLE, and a market-neutral Sharpe 1.6 sleeve must pass without beating SPY. If any lands wrong, the gates are miscalibrated; fix them before trusting a verdict. `evals/run_tests.py` runs the suite.
