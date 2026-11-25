@@ -1,0 +1,334 @@
+[
+ {
+  "name": "vb_pass",
+  "script": "validate_backtest.py",
+  "exit": 0,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_pass.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass",
+   "checks.train_cutoff.applies": false
+  },
+  "approx": {
+   "checks.deflated_sharpe.prob": [
+    0.9997,
+    0.0002
+   ]
+  }
+ },
+ {
+  "name": "vb_lookahead",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_lookahead.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "fail",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_samebar",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_samebar.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "fail",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  },
+  "contains": {
+   "reasons": "booked at target on a bar that also hit the stop"
+  }
+ },
+ {
+  "name": "vb_no_slippage",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_no_slippage.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "fail",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "fail",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_single_split",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_single_split.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "fail",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_llm_leak",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_llm_leak.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "fail"
+  },
+  "contains": {
+   "reasons": "predate the model's training cutoff 2025-01-01"
+  }
+ },
+ {
+  "name": "vb_llm_clean",
+  "script": "validate_backtest.py",
+  "exit": 0,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_llm_clean.json"
+  ],
+  "expect": {
+   "verdict": "pass",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass",
+   "checks.train_cutoff.test_share_before_cutoff": 0.0
+  }
+ },
+ {
+  "name": "vb_misaligned",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_misaligned.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "fail",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_cost_fragile",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_cost_fragile.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.cost_sweep.status": "fail"
+  }
+ },
+ {
+  "name": "vb_one_regime",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_one_regime.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.regimes.status": "fail"
+  },
+  "contains": {
+   "reasons": "one regime supplies more than all of the return"
+  }
+ },
+ {
+  "name": "vb_no_universe",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_no_universe.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "fail",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_many_trials",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_many_trials.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "pass",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "fail",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_net_mismatch",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_net_mismatch.json"
+  ],
+  "expect": {
+   "verdict": "fail",
+   "checks.alignment.status": "pass",
+   "checks.lookahead.status": "pass",
+   "checks.same_bar.status": "pass",
+   "checks.survivorship.status": "pass",
+   "checks.costs.status": "fail",
+   "checks.walk_forward.status": "pass",
+   "checks.deflated_sharpe.status": "pass",
+   "checks.cost_sweep.status": "pass",
+   "checks.regimes.status": "pass",
+   "checks.train_cutoff.status": "pass"
+  }
+ },
+ {
+  "name": "vb_missing_manifest_field",
+  "script": "validate_backtest.py",
+  "exit": 1,
+  "args": [
+   "--manifest",
+   "{F}/../manifest_no_universe.json"
+  ],
+  "contains": {
+   "reasons": "survivorship: missing input universe"
+  }
+ },
+ {
+  "name": "vb_legacy_misaligned_refused",
+  "script": "validate_backtest.py",
+  "exit": 2,
+  "args": [
+   "--equity",
+   "{F}/net.csv",
+   "--benchmark",
+   "{F}/bench_disjoint.csv",
+   "--trials",
+   "5"
+  ],
+  "expect": {
+   "verdict": "FAIL_GATES"
+  },
+  "contains": {
+   "gates": "benchmark not aligned"
+  }
+ },
+ {
+  "name": "vb_legacy_says_not_rigorous",
+  "script": "validate_backtest.py",
+  "exit": 0,
+  "args": [
+   "--equity",
+   "{F}/net.csv",
+   "--benchmark",
+   "{F}/bench.csv",
+   "--trials",
+   "5"
+  ],
+  "contains": {
+   "rigor": "not checked"
+  }
+ }
+]
