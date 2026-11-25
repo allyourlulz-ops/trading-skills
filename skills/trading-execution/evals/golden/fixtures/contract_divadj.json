@@ -1,0 +1,16 @@
+{
+ "decision_time": "2026-11-25T10:30:00-05:00",
+ "series": [
+  {
+   "name": "AAPL quote",
+   "symbol": "AAPL",
+   "role": "quote",
+   "source": "alpaca:get_stock_latest_quote",
+   "as_of": "2026-11-25T10:30:00-05:00",
+   "last_bar_end": "2026-11-25T10:30:00-05:00",
+   "timeframe": "1m",
+   "adjustment": "split_div",
+   "currency": "USD"
+  }
+ ]
+}
