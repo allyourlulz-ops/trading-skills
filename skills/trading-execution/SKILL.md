@@ -5,7 +5,7 @@ license: MIT
 compatibility: Alpaca MCP server v2, Questrade MCP, IBKR MCP. Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "2.0.0"
+  version: "2.0.1"
   sources: "day-trader-skill, ai-hedge-fund, QuantDinger, alpaca-mcp-server, finance-expert money invariants, reddygopalkrishna/trading-skills (preview layout)"
 ---
 
