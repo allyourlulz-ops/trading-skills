@@ -94,7 +94,6 @@ def main():
     wd = a.workdir or tempfile.mkdtemp(); os.makedirs(wd, exist_ok=True); net = os.path.join(wd, "net")
     out, hard, soft, plain, skipped = {}, [], [], [], []
     n_trials, tsrc = resolve_trials(a.trials, a.ledger, a.family)
-    ledger = [*(["--ledger", a.ledger] if a.ledger else []), *(["--family", a.family] if a.family else [])]
 
     co = call("costs.py", "--returns", a.gross, "--periods", a.periods, "--out", net, *(["--costs", a.costs] if a.costs else []))
     out["costs"] = co
