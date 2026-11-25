@@ -19,8 +19,9 @@ single coin (a day's trades are usually one bet). Verdict, at bar k (default 1):
   ANTI_EDGE  it loses to all but at most k monkeys (the calls were reliably wrong)
   LUCK       anything in between: cannot be told from chance at this sample size
 LUCK is not proof of no skill; short samples and few groups rarely clear the bar.
-What it tests: direction only. Timing and sizing are held fixed, so a strategy that earns from being
-in the market (beta) scores near 50. Run it on paper results before any stage advance.
+What it tests: direction only. Timing and sizing are held fixed. A long-only strategy in a rising
+market scores HIGH (a monkey goes short half the time), so a high percentile can be pure beta:
+always pair it with attribution.py. (Found on the real-data run, examples/real-data-run.md.) Run it on paper results before any stage advance.
 
 Method: per-position coin-flip test as published by oaia.fun for Alpha Arena (2026-11-06 and
 2026-11-10); this is own code, no code from that site is used.
