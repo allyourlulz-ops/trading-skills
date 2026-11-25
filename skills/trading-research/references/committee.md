@@ -1,6 +1,9 @@
 # Research committee
 Adapted from TradingAgents (Apache-2.0, TauricResearch), ai-hedge-fund (MIT, virattt), Vibe-Trading investment_committee (MIT, HKUDS), aurelio-finance (MIT).
 
+## Fast path for systematic sleeves
+A rule-based screen or premia signal does not need the six-stage committee: one analyst checks the data and the signal output, one decision follows from the code's verdict. The committee (below) is for special situations and single-name analysis, where judgement is the input. Running bull/bear and a risk debate over a mechanical rank adds cost and theatre, not information.
+
 ## Pipeline
 ```
 snapshot → [technical | fundamentals | news-macro | sentiment] (parallel)
@@ -66,7 +69,7 @@ Recommendations appear only as structured items with `reason`, `based_on`, `unkn
 - **Filings seat:** new 8-K/10-Q/Form 4/13D facts since the last call (filings-and-flows.md).
 - **Alt-data seat:** spending, app/web traffic, hiring and pricing signals vs peers, each with its source and lag; label proxies as proxies.
 - **KPI data room:** 5-year / 20-quarter financials with a link to each source document, as filed.
-- **Devil's advocate:** writes the case against first, then KEEP or KILL; mandatory before any hand-off to execution. KILL if any one holds: (1) lookahead_check LEAK or untested; (2) the best 5% of trades carry more than half the profit; (3) one regime or one year carries the equity curve; (4) fewer than 30 trades, or fewer than 10 in the holdout; (5) net of `costs.py` the edge is gone or below buy-and-hold with no lower drawdown to show for it; (6) monkey_test ANTI_EDGE. Otherwise KEEP, with the weakest item named. (Checklist idea from @sopersone's 151 Strategies article; own wording.)
+- **Devil's advocate:** writes the case against first, then KEEP or KILL; mandatory before any hand-off to execution, including a PAPER_PROBE. KILL if any one holds: (1) lookahead_check LEAK or untested; (2) the best 5% of trades carry more than half the profit; (3) one regime or one year carries the equity curve; (4) fewer than 30 trades, or fewer than 10 in the holdout; (5) net of `costs.py` the edge is gone at 3× costs, or it adds nothing beside the benchmark (validate_backtest's marginal test failed and, for a directional sleeve, it also trails on total return); (6) monkey_test ANTI_EDGE. Otherwise KEEP, with the weakest item named. (Checklist idea from @sopersone's 151 Strategies article; own wording.)
 
 ## From views to a portfolio (scripts/black_litterman.py)
 When the committee rates several names, don't size each in isolation. Write each rating as a view (`{"ticker":…,"conviction":-1..1,"confidence":0-100}`, or `{"long":…,"short":…}` for a pair; several analysts may view the same name) and run Black-Litterman: it starts from the market-implied returns, moves toward each view in proportion to its confidence, and returns target weights (`--long-only`, `--max-weight`). Abstaining personas send no view. A view the committee is unsure of barely moves the result, by design. Target weights then go through position_size.py and risk_check.py per order. Prices come from the data MCP server; the script itself makes no network calls.
