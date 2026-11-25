@@ -16,7 +16,7 @@ Commands
              {"client_order_id","symbol","side","filled_qty","filled_avg_price"}. Any break HALTs.
 
 A mandate for a strategy whose pipeline.py verdict was PAPER_PROBE sets "probe": true: it must be
-paper, and each order is capped at probe_size_multiplier (default 0.25) of max_order_usd.
+paper, and each order is capped at probe_size_multiplier (default 0.25) of max_order.
 
 Every order needs a client_order_id (derive it from the business action, e.g. strategy+symbol+signal
 bar). Send the same id to the broker so a retry can never fill twice. The ledger is append-only: fix a
@@ -39,6 +39,14 @@ DEFAULT_M = os.path.join(HERE, "..", "assets", "mandate.json")
 LIVE_ACK = "I accept losses from orders I do not approve one by one"
 MAX_DAYS = 30
 
+
+
+def lim(M, key):
+    """Mandate cap in base_currency. Old *_usd keys still read (v1 mandates)."""
+    v = M.get(key)
+    if v is None:
+        v = M.get(key + "_usd")
+    return v or 0
 
 def load_ledger(p):
     if not p or not os.path.exists(p):
@@ -88,10 +96,10 @@ def check(a):
         halt.append("probe mandates (pipeline.py PAPER_PROBE) are paper only")
 
     pnl_today = sum(r.get("pnl", 0) for r in T)
-    if pnl_today <= -abs(M.get("max_daily_loss_usd", 0)):
+    if pnl_today <= -abs(lim(M, "max_daily_loss")):
         halt.append("daily loss limit hit: %.2f" % pnl_today)
     pnl_total = sum(r.get("pnl", 0) for r in L if r.get("mandate_id") == M.get("id"))
-    if M.get("max_total_loss_usd") and pnl_total <= -abs(M["max_total_loss_usd"]):
+    if lim(M, "max_total_loss") and pnl_total <= -abs(lim(M, "max_total_loss")):
         halt.append("mandate loss limit hit: %.2f" % pnl_total)
     streak = 0
     for r in reversed([r for r in L if "pnl" in r]):
@@ -133,12 +141,12 @@ def check(a):
         notional = float(px) * float(o.get("qty", 0))
         if not px:
             need.append("entry has no limit price; the mandate only covers limit orders")
-        cap = M.get("max_order_usd", 0) * (float(M.get("probe_size_multiplier", 0.25)) if M.get("probe") else 1)
+        cap = lim(M, "max_order") * (float(M.get("probe_size_multiplier", 0.25)) if M.get("probe") else 1)
         if notional > cap:
             need.append("order $%.0f over the mandate's $%.0f per order%s" % (notional, cap, " (probe: quarter size)" if M.get("probe") else ""))
         spent = sum(r.get("notional", 0) for r in T if not r.get("is_exit"))
-        if spent + notional > M.get("max_daily_notional_usd", 0):
-            need.append("daily notional would be $%.0f, mandate allows $%s" % (spent + notional, M.get("max_daily_notional_usd")))
+        if spent + notional > lim(M, "max_daily_notional"):
+            need.append("daily notional would be $%.0f, mandate allows $%s" % (spent + notional, lim(M, "max_daily_notional")))
         if len([r for r in T if not r.get("is_exit")]) >= M.get("max_orders_per_day", 0):
             need.append("mandate's orders per day used up")
         if M.get("require_stop", True) and not o.get("stop_price"):
