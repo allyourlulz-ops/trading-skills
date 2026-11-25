@@ -9,7 +9,7 @@ Input CSV (one row per trade): rule,date,excess
           same holding period MINUS round-trip costs (log or simple, be consistent)
 
 Usage: rule_screen.py --trades trades.csv [--split 0.7] [--fdr 0.10]
-                      [--min-is 30] [--min-oos 10] [--oos-t 1.0]
+                      [--min-is 30] [--min-oos 10] [--oos-t 1.0] [--tried N]
 Prints JSON: per rule IS/OOS trades, weeks, mean, t, p, BH flag and a verdict
 (APPROVED | FAILED_OOS | NOT_SIGNIFICANT | TOO_FEW_TRADES).
 """
@@ -60,6 +60,8 @@ def main():
     ap.add_argument("--min-is", type=int, default=30)
     ap.add_argument("--min-oos", type=int, default=10)
     ap.add_argument("--oos-t", type=float, default=1.0)
+    ap.add_argument("--tried", type=int, default=0,
+                    help="variants tried in total, including ones with no trades (BH and Bonferroni count them all)")
     a = ap.parse_args()
 
     trades = defaultdict(list)
@@ -81,8 +83,8 @@ def main():
         stats.append(dict(rule=name, is_trades=len(ins), is_weeks=w_is, is_mean=m_is, is_t=t_is,
                           is_p=norm_sf(t_is), oos_trades=len(oos), oos_weeks=w_oos,
                           oos_mean=m_oos, oos_t=t_oos))
-    disc = bh([s["is_p"] for s in stats], a.fdr)
-    m = len(stats)
+    m = max(len(stats), a.tried)
+    disc = bh([s["is_p"] for s in stats] + [1.0] * (m - len(stats)), a.fdr)
     bonf_t = -1 * (math.sqrt(2) * _erfcinv(2 * (0.05 / m))) if m else 0.0
     for i, s in enumerate(stats):
         s["bh_discovery"] = i in disc
