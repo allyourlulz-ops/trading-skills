@@ -1,0 +1,15 @@
+{
+ "symbol": "AAPL",
+ "side": "buy",
+ "qty": 10,
+ "type": "limit",
+ "limit_price": 190.0,
+ "stop_price": 185.0,
+ "target_price": 192.0,
+ "time_in_force": "day",
+ "asset_class": "equity",
+ "order_class": "bracket",
+ "client_order_id": "golden-aapl-rr",
+ "risk_pct": 2,
+ "paper": true
+}
