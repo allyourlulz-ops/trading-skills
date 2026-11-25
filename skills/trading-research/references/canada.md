@@ -41,6 +41,8 @@ Contribution room is the user's own data; ask, never guess. Over-contributing to
 ## Currency
 - Every amount is a pair: value and currency. `rebalance.py` refuses mixed currencies unless `--base CAD --fx USD=<rate>` is given. Label every reported number with its currency.
 - Converting CAD to USD at a broker usually costs 1.5 to 2.5%. Norbert's gambit (buy DLR.TO in CAD, journal to DLR.U.TO, sell in USD) is cheaper for larger amounts; it takes a few days and the broker has to journal the shares.
+- `scripts/interlisted.py` does the arithmetic. `norbert` compares the gambit's effective USD/CAD against the broker's quoted rate (whole units, both commissions, journal fee). `buy` says which listing of an interlisted stock (RY, TD, ENB, SHOP, CNQ...) gets more shares for a CAD amount once FX is paid. `pair` prices the TSX line off the US line and checks whether the gap clears spreads, FX and commissions at executable quotes.
+- Interlisted gaps are usually a few bps and closed by dealers within seconds. `pair` refuses quotes more than 5 s apart or outside both sessions. A Bank of Canada Valet rate is a daily reference, so `pair` calls any gap built on it INDICATIVE. The sell leg needs shares you already hold; never short to make it work. Treat `pair` as a cost check, not a strategy.
 - Canadian-listed ETFs holding US stocks (e.g. XUS, VFV) avoid conversion but keep a layer of US withholding; US-listed ETFs in an RRSP avoid it.
 
 ## Canadian versions of the routines
