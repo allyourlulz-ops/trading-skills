@@ -51,7 +51,8 @@ The index's top "Featured" cards are the maintainer's own small memecoin/Polymar
 | nautechsystems/nautilus_trader | LGPL-3.0 | 4.5 | Intraday backtest → live with one codebase | 31.8k stars, v1.231.0; heavy setup |
 | edtechre/pybroker | Apache-2.0 + Commons Clause | 4 | Walk-forward + bootstrap on minute bars | 3.7k stars, v2.0.3 (2026-11-15); has its own agent skills |
 | polakowo/vectorbt | Fair-code | 3.5 | Fast parameter sweeps | Limit orders/leverage only in paid PRO |
-| nkaz001/hftbacktest | MIT | 3 | Queue/latency-aware book replay | Needs L2 data; last push Dec 2025 |
+| nkaz001/hftbacktest | MIT | 3 | Queue/latency-aware book replay | Needs L2 data; last push Dec 2025. Rechecked 2026-11-25: 5.1k stars, push 2025-12-23, no change to its use here |
+| yafet-a/Jane-Street-FTTP-Trading-Bot | none | 1 | Twin-listing fair value (ADR pair) | Contest-only mock exchange; pennying and ETF conversion don't transfer to retail. Idea only, own code: scripts/interlisted.py |
 
 ## roan-maverick/MIT-trader-skill (audited 2026-11-23)
 | Repo | License | Score | Role in this skill | Notes |
