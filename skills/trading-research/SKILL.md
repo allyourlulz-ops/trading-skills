@@ -5,7 +5,7 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "1.17.0"
+  version: "1.18.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill, risk-aware-trading-agents (rta-bench-1), FinSkillBench, Bailey and Lopez de Prado (PBO, DSR, CPCV), KTD-Fin, FinMCP-Bench, AI-Trader, Alpha Arena"
 ---
 
@@ -45,7 +45,7 @@ Classify the request before doing any expensive work:
 | Order request, or a bot wants to trade | `trading-execution` skill (risk_check, per-order yes, mandate); `scripts/risk_check.py` here only dry-runs an order |
 | Net of costs, every gate, one verdict | `scripts/costs.py` (impact, cost ladder, capacity), then `scripts/pipeline.py` (READY_FOR_PAPER, PAPER_PROBE or NOT_READY); worked run in examples/real-data-run.md |
 | Options payoff or covered call | references/options.md, `scripts/options_payoff.py` (stock qty in shares) |
-| Canadian account, TSX symbol or CAD | references/canada.md, `scripts/ca_tax_check.py` |
+| Canadian account, TSX symbol or CAD | references/canada.md, `scripts/ca_tax_check.py`, `scripts/interlisted.py` (TSX vs US line, Norbert's gambit) |
 | A data source failed or disagrees | references/data-layer.md; report per-source status |
 | Choosing or installing an MCP server | references/mcp-servers.md (the user runs installs) |
 
@@ -93,7 +93,7 @@ Unparseable or contradictory output becomes `REVIEW`, never a silent Hold. "Conf
 - **bot (standing okay):** mandates live in `trading-execution`. `pipeline.py` READY_FOR_PAPER hands over for normal paper trading; PAPER_PROBE hands over for paper only at a quarter of normal size, to collect forward data; NOT_READY never. The user sees the say_plainly lines first. `scripts/strategy_health.py` retires a strategy that stops working (drawdown, time under water, slippage over budget).
 
 - **portfolio:** `scripts/crash_guard.py` (vol target, drawdown brake, trend filter, risk shares, stress test), `scripts/rebalance.py` (drift, DCA, ETF look-through), `scripts/journal_stats.py` (trade journal and rule breaks). See references/portfolio-and-routines.md.
-- **canada:** TSX/TSXV data via openbb-tmx, Questrade or IBKR MCP, SEDAR+/SEDI filings, TFSA/RRSP/FHSA rules, CAD/USD, and `scripts/ca_tax_check.py` (ACB, superficial-loss check). See references/canada.md.
+- **canada:** TSX/TSXV data via openbb-tmx, Questrade or IBKR MCP, SEDAR+/SEDI filings, TFSA/RRSP/FHSA rules, CAD/USD, `scripts/ca_tax_check.py` (ACB, superficial-loss check) and `scripts/interlisted.py` (cheaper listing, FX conversion cost). See references/canada.md.
 - **filings / options / prediction markets / briefs:** references/filings-and-flows.md, references/options.md (`scripts/options_payoff.py`), references/prediction-markets.md (`scripts/kelly.py`), daily routines in references/portfolio-and-routines.md. All research-only by default.
 
 ## 4. Learning loop
