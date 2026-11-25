@@ -227,5 +227,30 @@ code, out, _ = run("premia_signals.py", "--prices", wide, "--signal", "mom12_1",
 check("premia band keeps held", code == 0 and ("S6" in json.loads(out)["weights"]) == (sorted(json.loads(out)["weights"]) != []))
 code, out, _ = run("premia_signals.py", "--prices", wide, "--signal", "tsmom")
 check("premia tsmom", code == 0 and len(json.loads(out)["weights"]) == 10)
+# 16. costs.py: each cost is its own line and net < gross by turnover x one-way cost
+gross = os.path.join(TMP, "gross.csv")
+with open(gross, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "ret", "turnover", "short", "trades"])
+    for t in range(252):
+        w_.writerow([f"d{t:04d}", 0.0004, 0.1 if t % 21 == 0 else 0, 0.5, 2 if t % 21 == 0 else 0])
+cj = os.path.join(TMP, "c.json"); json.dump({"spread_bps": 10, "slippage_bps": 5, "borrow_bps_yr": 100}, open(cj, "w"))
+code, out, err = run("costs.py", "--returns", gross, "--costs", cj, "--out", os.path.join(TMP, "n"))
+d = json.loads(out) if code == 0 else {}
+lines = d.get("cost_lines_bps_per_year", {})
+check("costs lines", d and abs(lines["spread"] - 1.2 * 5) < 0.2 and abs(lines["slippage"] - 1.2 * 5) < 0.2 and abs(lines["borrow"] - 50) < 1, str(lines) + err[-200:])
+check("costs net below gross", d and d["net_annual_return"] < d["gross_annual_return"])
+# 17. pipeline.py: noise is NOT_READY; premia backtest feeds it end to end
+code, out, err = run("premia_signals.py", "--prices", wide, "--signal", "mom12_1", "--backtest", os.path.join(TMP, "bt"))
+check("premia backtest", code == 0 and os.path.exists(os.path.join(TMP, "bt_gross.csv")), err[-200:])
+code, out, err = run("pipeline.py", "--gross", os.path.join(TMP, "bt_gross.csv"), "--positions", os.path.join(TMP, "bt_positions.csv"), "--workdir", TMP)
+d = json.loads(out) if code == 0 else {}
+check("pipeline runs", d.get("verdict") in ("READY_FOR_PAPER", "NOT_READY") and "costs" in d.get("results", {}), err[-300:])
+random.seed(5)
+with open(gross, "w", newline="") as fh:
+    w_ = csv.writer(fh); w_.writerow(["date", "ret", "turnover"])
+    for t in range(500):
+        w_.writerow([f"d{t:04d}", random.gauss(0, 0.01), 0.05])
+code, out, _ = run("pipeline.py", "--gross", gross, "--trials", "20", "--workdir", TMP)
+check("pipeline noise not ready", code == 0 and json.loads(out)["verdict"] == "NOT_READY")
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
