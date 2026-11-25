@@ -2,7 +2,7 @@
 
 Two agent skills (skills.sh / Agent Skills format) for evidence-first trading research over MCP. `trading-research` finds candidate edges, models costs and capacity, and validates them; it has no order tools. `trading-execution` (optional) places paper or live orders behind risk checks and your approval. Built from 16+ open-source trading and quant repos and published research (see `skills/trading-research/references/repo-evaluation.md` and `NOTICE`).
 
-Current version: trading-research 1.17.0, trading-execution 1.1.0. No strategy here is shown to have an edge. These are tools for finding out honestly.
+Current version: trading-research 1.18.0, trading-execution 1.1.0. No strategy here is shown to have an edge. These are tools for finding out honestly.
 
 ## Install
 ```bash
@@ -21,7 +21,7 @@ skills/trading-research/
                             options, filings-and-flows, prediction-markets, portfolio-and-routines, canada,
                             onchain-memecoin, mcp-servers, repo-evaluation
   examples/                 real-data-run.md (10 ETFs, 2017-2026, every gate shown)
-  scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py, permutation_test.py, black_litterman.py, scorekeeper.py, crash_guard.py, rebalance.py, journal_stats.py, options_payoff.py, kelly.py, ca_tax_check.py, overfit.py, regime.py, lookahead_check.py, monkey_test.py, attribution.py, mask.py, pit_store.py, premia_signals.py, costs.py, pipeline.py, trial_ledger.py, universe.py, discover.py, factor_proxies.py, strategy_health.py (stdlib Python)
+  scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py, permutation_test.py, black_litterman.py, scorekeeper.py, crash_guard.py, rebalance.py, journal_stats.py, options_payoff.py, kelly.py, ca_tax_check.py, interlisted.py, overfit.py, regime.py, lookahead_check.py, monkey_test.py, attribution.py, mask.py, pit_store.py, premia_signals.py, costs.py, pipeline.py, trial_ledger.py, universe.py, discover.py, factor_proxies.py, strategy_health.py (stdlib Python)
   evals/                    run_tests.py (offline script tests + positive-control suite), benchmark_suite.md, trigger_evals.json, task_evals.json, tool_scenarios.json + score_tool_calls.py
   assets/                   risk-limits.json, data-routes.json, MCP configs, strategy YAML + SignalEngine templates
 skills/trading-execution/
