@@ -1,6 +1,8 @@
 # trading-skills
 
-An agent skill (skills.sh / Agent Skills format) for evidence-first trading research, backtesting and risk-gated execution over MCP. It distils 16 open-source trading and quant repos into one skill (see `skills/trading-research/references/repo-evaluation.md`).
+Two agent skills (skills.sh / Agent Skills format) for evidence-first trading research over MCP. `trading-research` finds candidate edges, models costs and capacity, and validates them; it has no order tools. `trading-execution` (optional) places paper or live orders behind risk checks and your approval. Built from 16+ open-source trading and quant repos and published research (see `skills/trading-research/references/repo-evaluation.md` and `NOTICE`).
+
+Current version: trading-research 1.17.0, trading-execution 1.1.0. No strategy here is shown to have an edge. These are tools for finding out honestly.
 
 ## Install
 ```bash
@@ -14,25 +16,41 @@ Then add MCP servers from `skills/trading-research/assets/mcp-config.research.js
 ```
 skills/trading-research/
   SKILL.md                  intent guard, rules, output format, workflows
-  references/               committee, data-layer, strategies, backtesting, risk-and-execution,
-                            sentiment, forecasting, mcp-servers, repo-evaluation
+  references/               committee, data-layer, strategies (tiered A/B/C), backtesting, documented-edges,
+                            small-capacity-edges, regime-and-news, risk-and-execution, sentiment, forecasting,
+                            options, filings-and-flows, prediction-markets, portfolio-and-routines, canada,
+                            onchain-memecoin, mcp-servers, repo-evaluation
+  examples/                 real-data-run.md (10 ETFs, 2017-2026, every gate shown)
   scripts/                  position_size.py, risk_check.py, validate_backtest.py, rule_screen.py, permutation_test.py, black_litterman.py, scorekeeper.py, crash_guard.py, rebalance.py, journal_stats.py, options_payoff.py, kelly.py, ca_tax_check.py, overfit.py, regime.py, lookahead_check.py, monkey_test.py, attribution.py, mask.py, pit_store.py, premia_signals.py, costs.py, pipeline.py, trial_ledger.py, universe.py, discover.py, factor_proxies.py, strategy_health.py (stdlib Python)
-  evals/                    run_tests.py (offline script tests), trigger_evals.json, task_evals.json, tool_scenarios.json + score_tool_calls.py
+  evals/                    run_tests.py (offline script tests + positive-control suite), benchmark_suite.md, trigger_evals.json, task_evals.json, tool_scenarios.json + score_tool_calls.py
   assets/                   risk-limits.json, data-routes.json, MCP configs, strategy YAML + SignalEngine templates
+skills/trading-execution/
+  SKILL.md                  order rules, per-order yes, signed mandates, broker notes (Alpaca, Questrade, IBKR)
+  scripts/                  mandate.py, risk_check.py, position_size.py, strategy_health.py (shared scripts byte-identical with research)
+  assets/                   mandate.example.json, risk-limits.json, mcp-config.paper-execute.json
 ```
+
+## How a strategy moves
+1. **Find:** documented premia (`premia_signals.py`) or small-capacity event edges (`discover.py`); every idea must name who loses and why.
+2. **Count:** every variant goes in `trial_ledger.py` before its result is read.
+3. **Test:** point-in-time universe (`universe.py`), costs with impact and capacity (`costs.py`), then `pipeline.py`.
+4. **Verdict:** NOT_READY (a mechanical gate failed), PAPER_PROBE (mechanics clean, alpha unproven: paper only, at quarter size), or READY_FOR_PAPER.
+5. **Run and retire:** paper through trading-execution; `strategy_health.py` retires a strategy that stops working. Live money always needs your own keys and typed acknowledgement.
 
 ## Publish to skills.sh
 Push this folder as a public GitHub repo. There's no submit step: it appears on skills.sh once people install it with `npx skills add owner/repo`. Validate first with `skills-ref validate ./skills/trading-research`.
 
 ## Before each release
 ```bash
-python3 skills/trading-research/evals/run_tests.py     # offline script tests
-uvx snyk-agent-scan@latest skills/trading-research/SKILL.md   # Snyk agent scan, run by you
+python3 skills/trading-research/evals/run_tests.py     # offline script tests + positive controls
+python3 skills/trading-execution/evals/run_tests.py    # execution checks
+uvx snyk-agent-scan@latest skills/trading-research/SKILL.md    # Snyk agent scan, run by you
+uvx snyk-agent-scan@latest skills/trading-execution/SKILL.md
 ```
-Expect a W009 (money access) warning: execution and mandate bots live in this skill by design, behind broker-enforced paper keys, risk_check and per-order or mandate approval.
+trading-research has no money access. A W009 (money access) warning is expected only on trading-execution, which is optional and gated by broker-enforced paper keys, risk_check, and a per-order yes or a signed mandate.
 
 ## Disclaimer
-Research and education only. Not investment advice. Paper trading by default. Backtests overstate live results.
+Research and education only. Not investment advice. Paper trading by default. Backtests overstate live results, and published premia shrink after publication.
 
 
 ## Two skills (since v1.16.0)
