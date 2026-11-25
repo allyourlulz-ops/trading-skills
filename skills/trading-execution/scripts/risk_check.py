@@ -1,35 +1,48 @@
 #!/usr/bin/env python3
-"""Pre-trade gate 1 of 3. Returns PASS/BLOCK for one exact order and its fingerprint.
-Usage: risk_check.py --order order.json [--state state.json] [--limits ../assets/risk-limits.json] [--now 2026-11-23T10:15]
-order.json: {"symbol":"AAPL","side":"buy","qty":10,"type":"limit","limit_price":190.0,"stop_price":186.0,
-             "target_price":198.0,"is_exit":false,"asset_class":"equity","uses_margin":false}
-state.json: {"date":"2026-11-23","trades_today":1,"orders_today":2,"planned_loss_today_usd":40,
-             "realized_pnl_today_usd":-20,"buying_power":4800,"paper":true}
-context.json (optional, from the data MCP server; enables the event-timing gates, entries only):
-            {"as_of":"2026-11-23","next_earnings_date":"2026-12-02","last_earnings_date":"2026-10-30",
-             "return_since_last_earnings_pct":4.1,"rsi14":66,"pct_below_52w_high":3.0,"vix":18.5,
-             "safe_haven_5d_pct":{"GLD":0.4,"TLT":-0.2,"UUP":0.1}, "vix3m":20.1,
-             "event_risk":[{"event":"Taiwan Strait blockade","exposure":"direct","source_url":"https://..."}],
-             "btc_corr_30d":0.82, "btc_5d_pct":-4.0}   (last two for crypto)
-bar.json (optional, the last bar the signal was computed on; entries only):
-            {"timeframe":"1h","last_bar_open":"2026-11-23T14:00:00+00:00","closed":true}
-            BLOCK if the bar is still forming, or if its close is older than timing.max_stale_bars bars
-            (default 3): the exchange or feed has frozen. Timeframes: 1m 5m 15m 30m 1h 4h 1d.
-Times are interpreted in the limits' timezone (default America/New_York).
-RESIZE means: set qty to allowed_qty, add "base_qty" (the original size) to the order, run again."""
-import argparse, hashlib, json, os, sys
+"""Pre-trade hard gate. One exact order in, one verdict and one nonce out. Stdlib only, no network.
+Shared, byte-identical, by trading-research (dry runs) and trading-execution (orders).
+
+Usage
+  risk_check.py --order order.json --portfolio portfolio.json --mode paper|live --contract contract.json
+                [--instrument instrument.json] [--bar bar.json] [--context context.json]
+                [--limits ../assets/risk-limits.json] [--gate-dir D] [--now ISO]
+                [--override "reason" --override-ack "<gate.OVERRIDE_ACK>"]
+order.json  {"symbol":"AAPL","side":"buy","qty":12,"type":"limit","limit_price":190.0,"stop_price":185.0,
+             "target_price":205.0,"time_in_force":"day","asset_class":"equity","is_exit":false,
+             "risk_pct":2}                       # risk_pct / risk_amount optional: the user's requested risk
+portfolio   see position_size.py; also "paper": true|false and, for exchange sessions,
+            "clock": {"is_open": true, "next_close": "...", "source": "alpaca:get_clock", "as_of": "..."}
+contract    see data_contract.py; must contain a role "quote" series for this symbol
+bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","closed":true}
+
+Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
+              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "next"}
+reasons are "CODE: text". HARD codes can never be overridden; SOFT codes can, on paper only, with
+--override "reason" (10+ chars) and --override-ack set to the exact sentence the user typed; the
+override is logged to <gate_dir>/overrides.jsonl and the nonce says OVERRIDE.
+The order's qty must not exceed the size position_size.size() allows for this portfolio: there is no
+silent resize. Exits must match an open position (no exit flag on an opening trade).
+Exit codes: 0 pass, 1 fail, 2 bad input. Every outcome, including bad input, gets a nonce or an error.
+"""
+from __future__ import annotations
+
+import argparse, json, math, os, sys
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 try:
     from zoneinfo import ZoneInfo
 except ImportError:  # py<3.9
     ZoneInfo = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from gate import OVERRIDE_ACK, fingerprint, issue  # noqa: E402
+from position_size import SizingError, size  # noqa: E402
+from data_contract import check as contract_check  # noqa: E402
 
-def fingerprint(o):
-    keys = ["symbol", "side", "qty", "type", "limit_price", "stop_price"]
-    s = json.dumps({k: o.get(k) for k in keys}, sort_keys=True)
-    return hashlib.sha256(s.encode()).hexdigest()[:16]
+DEFAULT_LIMITS = os.path.join(HERE, "..", "assets", "risk-limits.json")
+SOFT = {"ENTRY_WINDOW", "TRADES_PER_DAY", "ORDERS_PER_DAY", "REWARD_RISK", "TIMING", "MIN_ORDER"}
+
 
 def _days(a, b):
     from datetime import date
@@ -78,7 +91,7 @@ def timing_gates(L, o, c, now, blocks, warns):
         return mult
     today = now.date().isoformat()
     if c.get("as_of") and _days(today, c["as_of"]) > 1:
-        warns.append(f"context is stale (as_of {c['as_of']}); refresh before trading")
+        blocks.append(f"context is stale (as_of {c['as_of']}); refresh before trading")
     if ac == "equity":
         ne = c.get("next_earnings_date")
         if ne is None:
@@ -125,72 +138,211 @@ def timing_gates(L, o, c, now, blocks, warns):
     return max(mult, floor) if mult < 1 else 1.0
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--order", required=True)
-    ap.add_argument("--state")
-    ap.add_argument("--limits", default=os.path.join(HERE, "..", "assets", "risk-limits.json"))
-    ap.add_argument("--now")
-    ap.add_argument("--context", help="market/event context JSON for timing gates")
-    ap.add_argument("--bar", help="last-bar JSON for the freshness gate")
-    a = ap.parse_args()
-    L = json.load(open(a.limits)); o = json.load(open(a.order))
-    st = json.load(open(a.state)) if a.state else {}
-    tz = ZoneInfo(L.get("timezone", "America/New_York")) if ZoneInfo else None
-    now = datetime.fromisoformat(a.now) if a.now else datetime.now(tz)
+class Reasons:
+    def __init__(self) -> None:
+        self.items: List[Tuple[str, str]] = []
+
+    def add(self, code: str, text: str) -> None:
+        self.items.append((code, text))
+
+    def strings(self) -> List[str]:
+        return [f"{c}: {t}" for c, t in self.items]
+
+    def hard(self) -> List[str]:
+        return [f"{c}: {t}" for c, t in self.items if c not in SOFT]
+
+
+def side_of(o: Dict[str, Any]) -> str:
+    s = str(o.get("side", "")).lower()
+    if s not in ("buy", "sell"):
+        raise ValueError("order.side must be buy or sell")
+    return s
+
+
+def check_exit(o: Dict[str, Any], pf: Dict[str, Any], R: Reasons) -> None:
+    sym, qty = o["symbol"].upper(), float(o["qty"])
+    pos = [p for p in pf.get("positions", []) if p["symbol"].upper() == sym]
+    held = sum(float(p["qty"]) * (1 if p.get("side", "long") == "long" else -1) for p in pos)
+    s = side_of(o)
+    if held == 0:
+        R.add("EXIT_NO_POSITION", f"is_exit but no open {sym} position: this would open a new one")
+    elif (s == "sell" and held < 0) or (s == "buy" and held > 0):
+        R.add("EXIT_WRONG_SIDE", f"is_exit {s} would add to the {sym} position, not reduce it")
+    elif qty > abs(held) + 1e-12:
+        R.add("EXIT_TOO_BIG", f"exit qty {qty} exceeds held {abs(held)}: the rest would open a reverse position")
+
+
+def session_gates(L: Dict[str, Any], spec_session: str, pf: Dict[str, Any], now: datetime, R: Reasons) -> None:
+    if spec_session == "24x7":
+        return
+    clk = pf.get("clock")
+    if not clk or "is_open" not in clk or not clk.get("source"):
+        R.add("NO_CLOCK", "exchange session needs portfolio.clock {is_open, source} from the broker")
+        return
+    if clk["is_open"] is not True:
+        R.add("MARKET_CLOSED", f"market closed per {clk['source']}")
     hhmm = now.strftime("%H:%M")
-    blocks, warns = [], []
-    sym = o["symbol"].upper()
-    exit_ = bool(o.get("is_exit"))
-    if sym in [b.upper() for b in L.get("blocked", [])]: blocks.append(f"{sym} is on the blocked list")
+    if hhmm < L.get("no_entries_before", "00:00"):
+        R.add("ENTRY_WINDOW", f"no entries before {L['no_entries_before']}")
+    if hhmm > L.get("no_entries_after", "23:59"):
+        R.add("ENTRY_WINDOW", f"no entries after {L['no_entries_after']}")
+
+
+def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str, contract: Optional[Dict[str, Any]],
+             instrument: Optional[Dict[str, Any]], bar: Optional[Dict[str, Any]], context: Optional[Dict[str, Any]],
+             now: datetime, tz: Any) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
+    """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used)."""
+    R, warns = Reasons(), []
+    sym = str(o["symbol"]).upper()
+    s = side_of(o)
+    qty = float(o["qty"])
+    if qty <= 0:
+        R.add("BAD_QTY", "qty must be > 0")
     ac = o.get("asset_class", "equity")
-    if ac == "option" and not L.get("allow_options"): blocks.append("options disabled")
-    if ac == "crypto" and not L.get("allow_crypto", False): blocks.append("crypto disabled")
-    if o.get("uses_margin") and not L.get("allow_margin"): blocks.append("margin disabled")
-    if o["side"] == "sell" and not exit_ and not L.get("allow_short"): blocks.append("short selling disabled")
-    if st.get("paper") is False and L.get("paper", True): blocks.append("account is LIVE but limits require paper")
-    if not exit_:
-        px = o.get("limit_price") or o.get("est_price")
-        if px is None: blocks.append("need limit_price or est_price to measure risk")
-        else:
-            notional = px * o["qty"]
-            if notional > L["max_order_usd"]: blocks.append(f"notional ${notional:.2f} > max_order_usd {L['max_order_usd']}")
-            if notional < L.get("min_order_usd", 0): blocks.append("below min_order_usd")
-            if st.get("buying_power") is not None and notional > st["buying_power"]: blocks.append("exceeds buying power")
-            cap = L["budget"] * (1 - L.get("cash_buffer_pct", 0) / 100) * L.get("max_position_pct", 100) / 100
-            if notional > cap: blocks.append(f"notional ${notional:.2f} > max position ${cap:.2f}")
-            stop = o.get("stop_price")
-            if L.get("require_stop") and stop is None: blocks.append("stop required")
-            if stop is not None:
-                loss = (px - stop) * o["qty"]
-                if loss <= 0: blocks.append("stop is not below entry")
-                if loss > L["max_loss_per_trade_usd"]: blocks.append(f"max loss ${loss:.2f} > per-trade limit {L['max_loss_per_trade_usd']}")
-                day = st.get("planned_loss_today_usd", 0) + max(loss, 0)
-                if day > L["max_daily_loss_usd"]: blocks.append(f"daily max-loss budget ${day:.2f} > {L['max_daily_loss_usd']}")
-                if o.get("target_price"):
-                    rr = (o["target_price"] - px) / (px - stop) if px > stop else 0
-                    if rr < L.get("min_reward_risk", 0): blocks.append(f"reward/risk {rr:.2f} < {L['min_reward_risk']}")
-        if st.get("trades_today", 0) >= L["max_trades_per_day"]: blocks.append("max trades per day reached")
-        if st.get("orders_today", 0) >= L.get("max_orders_per_day", 99): blocks.append("max orders per day reached")
-        if hhmm < L.get("no_entries_before", "00:00"): blocks.append(f"no entries before {L['no_entries_before']}")
-        if hhmm > L.get("no_entries_after", "23:59"): blocks.append(f"no entries after {L['no_entries_after']}")
-        bar_gates(L, json.load(open(a.bar)) if a.bar else None, now, tz, blocks, warns)
-        mult = timing_gates(L, o, json.load(open(a.context)) if a.context else None, now, blocks, warns)
+    exit_ = bool(o.get("is_exit"))
+    used: Dict[str, Any] = {k: L.get(k) for k in (
+        "base_currency", "max_risk_per_trade_pct", "max_loss_per_trade", "max_portfolio_heat_pct",
+        "max_cluster_risk_pct", "cluster_corr", "max_daily_loss", "max_daily_loss_pct", "max_position_pct",
+        "max_order", "min_order", "cash_buffer_pct", "gap_loss_multiple", "stop_slippage_bps",
+        "min_reward_risk", "max_trades_per_day", "max_orders_per_day", "no_entries_before",
+        "no_entries_after", "timezone", "paper", "allow_short", "allow_options", "allow_crypto", "allow_margin")
+        if k in L}
+    if sym in [b.upper() for b in L.get("blocked", [])]:
+        R.add("BLOCKED_SYMBOL", f"{sym} is on the blocked list")
+    if ac == "option" and not L.get("allow_options"):
+        R.add("OPTIONS_OFF", "options disabled in limits")
+    if ac == "crypto" and not L.get("allow_crypto", False):
+        R.add("CRYPTO_OFF", "crypto disabled in limits")
+    if o.get("uses_margin") and not L.get("allow_margin"):
+        R.add("MARGIN_OFF", "margin disabled in limits")
+    pmode = None if "paper" not in pf else ("paper" if pf["paper"] else "live")
+    if mode not in ("paper", "live"):
+        R.add("MODE_UNKNOWN", "pass --mode paper or live")
+    if pmode is None:
+        R.add("MODE_UNKNOWN", "portfolio.paper missing: the account's mode is not proven")
+    elif mode in ("paper", "live") and pmode != mode:
+        R.add("MODE_MISMATCH", f"--mode {mode} but the account is {pmode}")
+    if mode == "live" and L.get("paper", True):
+        R.add("LIVE_NOT_ALLOWED", "account is LIVE but limits require paper")
+    sizing: Dict[str, Any] = {}
+    if exit_:
+        check_exit(o, pf, R)
+        warns.append("exit order: entry limits are not applied to a verified reduce-only exit")
+        return R, warns, sizing, used
+    side = "long" if s == "buy" else "short"
+    if side == "short" and not L.get("allow_short"):
+        R.add("SHORT_OFF", "short selling disabled in limits")
+    px = o.get("limit_price") if o.get("type", "limit") != "market" else o.get("est_price")
+    if px is None:
+        px = o.get("est_price")
+    if px is None or float(px) <= 0:
+        R.add("NO_PRICE", "need limit_price (or est_price for a market order) to measure risk")
+        return R, warns, sizing, used
+    px = float(px)
+    stop = o.get("stop_price")
+    if stop is None and ac != "option" and L.get("require_stop", True):
+        R.add("NO_STOP", "stop_price required for entries")
+    # data contract: hard, and it must cover this symbol's quote
+    if contract is None:
+        R.add("DATA_CONTRACT", "required for entries: pass --contract")
     else:
-        mult = 1.0
-        warns.append("exit order: daily limits do not block exits")
-    import math as _m
-    base = o.get("base_qty", o["qty"])  # qty position_size.py gave before any cut
-    allowed = _m.floor(base * mult) if mult < 1 else base
-    if mult < 1 and allowed < 1:
-        blocks.append(f"size multiplier {round(mult, 2)} leaves less than 1 unit")
-    resize = mult < 1 and o["qty"] > allowed
-    res = {"verdict": "BLOCK" if blocks else ("RESIZE" if resize else "PASS"), "allowed_qty": allowed, "fingerprint": fingerprint(o), "symbol": sym,
-           "checked_at": now.isoformat(), "blocks": blocks, "warnings": warns, "size_multiplier": round(mult, 2),
-           "next": ("Do not place this order." if blocks else
-                     f"Set qty to {allowed}, keep base_qty {base} in the order, and run risk_check again." if resize else
-                     "Ask the user for an explicit yes naming this ticker, side and quantity.")}
-    print(json.dumps(res, indent=2)); sys.exit(0 if not blocks else 2)
+        c2 = dict(contract, decision_time=now.isoformat())  # the gate's clock, never the caller's
+        dc = contract_check(c2, now.isoformat(), "sizing")
+        if dc["verdict"] != "OK":
+            R.add("DATA_CONTRACT", f"{dc['verdict']}: " + "; ".join(dc.get("reasons", []))[:300])
+        q = [x for x in contract.get("series", []) if x.get("role") == "quote" and str(x.get("symbol", "")).upper() == sym]
+        if not q:
+            R.add("DATA_CONTRACT", f"no quote series for {sym} in the contract")
+    if bar is not None or L.get("require_bar", False):
+        blk: List[str] = []
+        bar_gates(L, bar, now, tz, blk, warns)
+        for b in blk:
+            R.add("BAR", b)
+    tblk: List[str] = []
+    mult = timing_gates(L, o, context, now, tblk, warns)
+    for b in tblk:
+        R.add("STALE_CONTEXT" if b.startswith("context is stale") else "TIMING", b)
+    today = pf.get("today") or {}
+    if today.get("trades", 0) >= L.get("max_trades_per_day", math.inf):
+        R.add("TRADES_PER_DAY", "max trades per day reached")
+    if today.get("orders", 0) >= L.get("max_orders_per_day", math.inf):
+        R.add("ORDERS_PER_DAY", "max orders per day reached")
+    try:
+        sizing = size(sym, side, px, None if stop is None else float(stop), pf, L, ac, instrument,
+                      o.get("risk_pct"), o.get("risk_amount"), o.get("target_price"), mult)
+    except SizingError as e:
+        R.add("SIZING_INPUT", str(e))
+        return R, warns, sizing, used
+    session_gates(L, sizing["session"], pf, now, R)
+    for r in sizing.get("reasons", []):
+        code = "MIN_ORDER" if "min_order" in r else "RISK_LIMIT"
+        R.add(code, r)
+    if qty > sizing["qty"] + 1e-12:
+        R.add("SIZE", f"qty {qty:g} > sized max {sizing['qty']:g} (binding: {sizing['binding_constraint']}); "
+              f"send qty {sizing['qty']:g} and check again")
+    rr = sizing.get("reward_risk")
+    if rr is not None and rr < L.get("min_reward_risk", 0):
+        R.add("REWARD_RISK", f"reward/risk {rr} < {L['min_reward_risk']}")
+    if mult < 1:
+        warns.append(f"timing gates cut the risk budget to {round(mult, 2)}x")
+    return R, warns, sizing, used
+
+
+def main() -> None:
+    try:
+        _main()
+    except SystemExit:
+        raise
+    except Exception as e:  # fail closed: any unexpected error is a fail with no usable nonce
+        print(json.dumps({"verdict": "fail", "error": f"internal error: {type(e).__name__}: {e}", "nonce": None}, indent=2))
+        sys.exit(2)
+
+
+def _main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--order", required=True); ap.add_argument("--portfolio", required=True)
+    ap.add_argument("--mode", required=True, choices=["paper", "live"])
+    ap.add_argument("--contract"); ap.add_argument("--instrument"); ap.add_argument("--bar"); ap.add_argument("--context")
+    ap.add_argument("--limits", default=DEFAULT_LIMITS); ap.add_argument("--gate-dir"); ap.add_argument("--now")
+    ap.add_argument("--override", help="reason for proceeding despite SOFT reasons (paper only, logged)")
+    ap.add_argument("--override-ack", help="the exact acknowledgement sentence, typed by the user")
+    a = ap.parse_args()
+    ld = lambda p: json.load(open(p)) if p else None  # noqa: E731
+    try:
+        L, o, pf = ld(a.limits), ld(a.order), ld(a.portfolio)
+        tz = ZoneInfo(L.get("timezone", "America/New_York")) if ZoneInfo else None
+        now = datetime.fromisoformat(a.now) if a.now else datetime.now(tz)
+        if now.tzinfo is None and tz is not None:
+            now = now.replace(tzinfo=tz)
+        R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), ld(a.instrument), ld(a.bar),
+                                          ld(a.context), now, tz)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
+    reasons, fp, override = R.strings(), fingerprint(o), None
+    verdict = "FAIL" if reasons else "PASS"
+    if a.override is not None and reasons:
+        why = []
+        if a.mode != "paper": why.append("overrides are paper only")
+        if len(a.override.strip()) < 10: why.append("override reason must be 10+ characters")
+        if a.override_ack != OVERRIDE_ACK: why.append(f'override ack must be exactly: "{OVERRIDE_ACK}" (typed by the user)')
+        if R.hard(): why.append("HARD reasons cannot be overridden: " + "; ".join(R.hard()))
+        override = {"accepted": not why, "reason": a.override.strip(), "refused_because": why,
+                    "overridden": reasons if not why else []}
+        if not why:
+            verdict = "OVERRIDE"
+    ttl = int((L.get("gate") or {}).get("token_ttl_s", 300))
+    nonce = issue(verdict, fp, a.mode, a.limits, reasons, warns, a.gate_dir, ttl, now,
+                  {"symbol": o.get("symbol"), "qty": o.get("qty"),
+                   "override_reason": (override or {}).get("reason") if verdict == "OVERRIDE" else None,
+                   "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
+    out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
+           "nonce": nonce, "mode": a.mode, "fingerprint": fp, "warnings": warns, "override": override,
+           "checked_at": now.isoformat(),
+           "next": ("Do not place this order. " + reasons[0] if verdict == "FAIL" else
+                    "Override logged. Preview with --allow-override; the preview prints OVERRIDE." if verdict == "OVERRIDE" else
+                    "Show preview.py output with this nonce, then get the user's yes for this exact order.")}
+    print(json.dumps(out, indent=2)); sys.exit(1 if verdict == "FAIL" else 0)
+
 
 if __name__ == "__main__":
     main()
