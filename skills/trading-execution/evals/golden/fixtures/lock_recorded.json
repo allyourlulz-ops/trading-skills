@@ -1,0 +1,83 @@
+{
+ "lock_version": 1,
+ "checked": "2026-11-25",
+ "_note": "Versions and sha256 come from PyPI/npm/Docker Hub metadata read 2026-11-25; not installed or run here. sha256 lists the published files of the top-level package (wheel and sdist). locks/*.txt pin every transitive dependency with hashes (uv pip compile --generate-hashes --python-version 3.12 --universal). 'tools' stays empty until the user saves a server's tools/list, reviews the descriptions, and records mcp_lock.py snapshot output here. Optional servers are pinned but not in the shipped configs. The agent never edits this file.",
+ "servers": {
+  "openbb": {
+   "registry": "pypi",
+   "mode": "data",
+   "requirements_lock": "locks/openbb.txt",
+   "packages": {
+    "openbb-mcp-server": {
+     "version": "2.0.1",
+     "sha256": [
+      "35f4816b263e95cfc63fa467543f279c0e1a047b714c434faf2bffaf68d5d989",
+      "6efca7cdf0a4ae205fb8eb8e2c35baf4558299e1d9a3ba5874d57f82ceae6a4e"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-28"
+    },
+    "openbb": {
+     "version": "5.0.0",
+     "sha256": [
+      "98a41d63fb0de1cd0267e208393fb927fa6675baf613c125ee943c3014a34755",
+      "b664dcbb3d057d46c9ae402349d0ddc638905009f684038a217e4e594c29f4f9"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-29"
+    }
+   },
+   "optional_packages": {
+    "openbb-tmx": {
+     "version": "2.0.0",
+     "sha256": [
+      "5c37b042c8f881fa6057a27dca41bb5c226f91820f39ff2229dc7ec168247839",
+      "89191ebcab26502e72fadbc29f8e5af26d80a7921bd9e2d59c08dee85358fc59"
+     ],
+     "license": "Apache-2.0",
+     "uploaded": "2026-09-28"
+    }
+   },
+   "tools": {}
+  },
+  "alpaca": {
+   "registry": "pypi",
+   "mode": "from_config: ALPACA_PAPER_TRADE must be the literal \"true\" (paper) or \"false\" (live)",
+   "requirements_lock": "locks/alpaca.txt",
+   "packages": {
+    "alpaca-mcp-server": {
+     "version": "2.4.1",
+     "sha256": [
+      "c86d382d91d99c894ca2e5e1b64c64a293e6ae02f7ae1248b8489a37ab6c04b7",
+      "f80666a2951dd8d1a096b0ca188ca7f1c0f693a44cfad85bb2ff567e9e862725"
+     ],
+     "license": "MIT",
+     "uploaded": "2026-11-04"
+    }
+   },
+   "endpoints": {
+    "paper": "https://paper-api.alpaca.markets",
+    "live": "https://api.alpaca.markets",
+    "data": "https://data.alpaca.markets"
+   },
+   "tools": {
+    "get_stock_latest_quote": "1dea3a2a2c86966c287be48c3d902767554796121d5d25ab0c1a2b1bc76b8a93",
+    "place_stock_order": "5377187eeff250f48fc5306b9c67b4a09a4f3f7347fd5abc39a2d2187cffdf59"
+   }
+  }
+ },
+ "optional_servers": {
+  "questrade": {
+   "registry": "hosted",
+   "mode": "live",
+   "url": "see references/canada.md; hosted, version cannot be pinned: record tool hashes",
+   "tools": {}
+  },
+  "ibkr": {
+   "registry": "hosted",
+   "mode": "live",
+   "url": "https://api.ibkr.com/v1/api/mcp",
+   "tools": {}
+  }
+ }
+}
