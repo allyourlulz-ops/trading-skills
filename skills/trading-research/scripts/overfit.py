@@ -42,6 +42,13 @@ def sharpe(x):
     return statistics.fmean(x) / s if s > 0 else 0.0
 
 
+def _ols_slope(x, y):
+    """Least-squares slope (statistics.linear_regression needs Python 3.10; this runs on 3.9)."""
+    mx, my = sum(x) / len(x), sum(y) / len(y)
+    vx = sum((a - mx) ** 2 for a in x)
+    return sum((a - mx) * (b - my) for a, b in zip(x, y)) / vx if vx else 0.0
+
+
 def pbo(names, cols, blocks):
     T = len(cols[0])
     blocks -= blocks % 2
@@ -62,7 +69,7 @@ def pbo(names, cols, blocks):
         lams.append(math.log(w / (1 - w)))
         degr.append((sr_in[best], sr_out[best]))
     p = sum(1 for l in lams if l <= 0) / len(lams)
-    slope = statistics.linear_regression([d[0] for d in degr], [d[1] for d in degr]).slope if len(degr) > 2 else None
+    slope = _ols_slope([d[0] for d in degr], [d[1] for d in degr]) if len(degr) > 2 else None
     return dict(test="pbo", variants=N, rows=T, blocks=blocks, splits=len(lams), pbo=round(p, 3),
                 median_logit=round(statistics.median(lams), 3),
                 oos_sharpe_of_is_best_mean=round(statistics.fmean(d[1] for d in degr), 4),
