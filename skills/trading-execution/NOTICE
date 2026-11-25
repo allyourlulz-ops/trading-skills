@@ -1,0 +1,53 @@
+This skill adapts ideas and condensed prompt wording from:
+- TauricResearch/TradingAgents (Apache-2.0)
+- HKUDS/Vibe-Trading, virattt/ai-hedge-fund, Jakeschincariol/day-trader-skill,
+  alpacahq/alpaca-mcp-server, ZhuLinsen/daily_stock_analysis, LosaLosSantos/aurelio-finance,
+  mvanhorn/last30days-skill, shiyu-coder/Kronos, janestreet/agent_skills (MIT)
+- OpenBB, OpenByteInc/QuantDinger, goldmansachs/gs-quant, zipline-reloaded (Apache-2.0)
+- polars (MIT); pyfolio-reloaded, solders (Apache-2.0); backtesting.py (AGPL-3.0, referenced as a dependency only)
+- @DN_degen, "I Was Asleep. My AI Desk Wasn't" (X article, 2026-11-15): kill-filter and desk structure, paraphrased
+- NautilusTrader (LGPL-3.0), PyBroker (Apache-2.0 + Commons Clause), vectorbt (Fair-code), HftBacktest (MIT): referenced as external dependencies only
+- roan-maverick/MIT-trader-skill (MIT): rule-screening method, reimplemented in scripts/rule_screen.py; its CC BY-NC-SA lecture notes are linked, not included
+- Permutation gates in scripts/permutation_test.py: original code following Timothy Masters' permutation-testing method as described in a @rohonchain article (2026-11-11)
+- Black-Litterman (Black & Litterman 1992; confidence-scaled Omega in the spirit of Idzorek 2005): original code in scripts/black_litterman.py. Prompted by aardisaputra/uchicago_case3, which has no license, so none of its code is used
+- Event-timing gate thresholds in scripts/risk_check.py: ideas from udiedrichsen/stock-analysis (openclaw skill); original code
+- Crash-protection rules in scripts/crash_guard.py: original code following hft.md/crash (vol targeting, drawdown brake, trend filter, risk contribution, stress test; S&P 500 crash levels as published there)
+- Capability list for v1.7 (scorecard, filings watch, options, prediction markets, rebalancing, journals, briefs): ideas from the hft.md Grok Bot directory and cs68614-hash/awesome-grokbot-templates (CC0); no bot prompts were available or used
+- MCP servers referenced, not bundled: stefanoamorelli/sec-edgar-mcp (AGPL-3.0), JamesANZ/prediction-market-mcp (MIT)
+- Money-hygiene rules (client_order_id dedupe, append-only reversals, broker reconciliation, labelled amounts): ideas from the "finance-expert" skill's money invariants; no code from it was available or used
+- Canadian tax rules in scripts/ca_tax_check.py follow CRA guide T4037 and Income Tax Act s.54 / s.251.1 as published by the CRA; original code
+- freqtrade (GPL-3.0): referenced via its CLI only; no freqtrade code is included.
+No code from these projects is copied except short illustrative API examples.
+
+v1.12.0 (2026-11-24) additions, all own implementations, nothing copied:
+- jackson-cmd/risk-aware-trading-agents (MIT): regime table, cash floor, tranches, two-source news verification, LLM nudge cap, look-ahead cut test, point-in-time news idea. https://github.com/jackson-cmd/risk-aware-trading-agents
+- FinSkillBench, Bek, Bok and Sun, "Knowledge or Calculator? Decomposing the Skill Premium in Verifiable Financial Agent Workflows", arXiv 2610.03564 (2026): numbers-through-scripts and canonical-mandate lessons (cited, not copied).
+- Bailey, Borwein, Lopez de Prado and Zhu (2014), Bailey and Lopez de Prado (2014), Lopez de Prado (2018): PBO, deflated Sharpe, purged and combinatorial purged cross-validation (methods from papers).
+- Agent Skills guidance: Anthropic skill authoring best practices, agentskills.io, anthropics/skills skill-creator (trigger-eval format); Snyk agent-scan issue codes.
+- Listed MCP servers (user-installed, not bundled): arhancanli/canli-mcp (MIT), bcosm/backtester-mcp (Apache-2.0), atilaahmettaner/tradingview-mcp (MIT), YichengYang-Ethan/oracle3-prediction-market-agent (Apache-2.0).
+
+v1.13.0 (2026-11-24) additions, all own implementations, nothing copied:
+- @sopersone, "A Former WorldQuant Director Published 151 Strategies for Free. How to Automate Them With AI." (X, 2026-10-26): ideas for the unfinished-bar and stale-data gates, the two-sided filter warning and the funding cost line. The article's code has no licence and was not used.
+- Z. Kakushadze and J.A. Serur, 151 Trading Strategies (2018), SSRN 3247865, section 3.18: dollar-neutral max-Sharpe weight formula (method cited, text not copied).
+
+v1.14.0 (2026-11-24) additions, all own implementations, nothing copied:
+- Nof1 Alpha Arena seasons 1 and 1.5 (public results) and oaia.fun, "did grok 4.20 beat the monkeys?" (2026-11-10): coin-flip test method in scripts/monkey_test.py and the hold-is-valid and turnover lessons. No Nof1 prompts or oaia code used.
+- KTD-Fin, Zhu et al., "From Knowing to Doing: A Memory-Controlled Benchmark for LLM Trading Agents on Stock Markets", arXiv 2605.28359 (2026): Barra-style attribution (scripts/attribution.py) and four-level masking (scripts/mask.py), methods from the paper.
+- FinMCP-Bench, Zhu et al., arXiv 2603.24943 (2026): TP/TR/TF1/EMR metrics and scenario structure (evals/score_tool_calls.py, evals/tool_scenarios.json). Its dataset is CC BY-NC-SA 4.0 and is not included; the scenarios here are original.
+- HKUDS/AI-Trader: live data pipeline pattern (routing, fallback, cooldown, merged store, anti-look-ahead reads) in scripts/pit_store.py. The repository has no licence file, so no code was used.
+
+v1.15.0 (2026-11-24): references/documented-edges.md quotes published results (figures cited, not reproduced code) from Frazzini, Israel and Moskowitz (AQR, 2012); Novy-Marx and Velikov (RFS, 2016); Hurst, Ooi and Pedersen (JPM, 2017); McLean and Pontiff (JF, 2016); Chen and Velikov (2019). scripts/premia_signals.py is own code implementing the published signal definitions.
+
+v1.16.0 (2026-11-24): execution split into skills/trading-execution (mandate.py, risk_check.py and position_size.py copies, execute config, order rules). New scripts/costs.py and scripts/pipeline.py (own code). KEEP/KILL checklist idea from @sopersone's 151 Strategies article (own wording). kNN task eval follows the method in Kakushadze and Serur, 151 Trading Strategies, section 3.17 (no text copied). Broker tool lists from Questrade's MCP technical reference and Claude's IBKR connector page, checked 2026-11-24. examples/real-data-run.md reports results computed from Yahoo Finance adjusted closes; no price data is redistributed.
+
+v1.18.0 (2026-11-25): scripts/interlisted.py takes the twin-listing fair-value idea from yafet-a/Jane-Street-FTTP-Trading-Bot (no licence; idea only, no code used). Norbert's gambit is a public technique; no text copied.
+
+v1.17.0 (2026-11-24): changes follow an outside review the user shared (scorecard and patch list; the trial-ledger sketch was adapted, own code). Square-root impact after Almgren, Thum, Hauptmann and Li (Risk, 2005) and Toth et al. (Physical Review X, 2011). Overlapping portfolios after Jegadeesh and Titman (JF, 1993); delisting-return bias after Shumway (JF, 1997). references/small-capacity-edges.md cites, without copying text: Shleifer (1986); Harris and Gurel (1986); Madhavan (2003); Petajisto (2011); Patel and Welch (2017); Roll (1983); Reinganum (1983); Bernard and Thomas (1989); Hirshleifer, Lim and Teoh (2009); Chordia et al. (2009); Martineau (2022); Nagel (2012); D'Avolio (2002); Engelberg, Reed and Ringgenberg (2018); Drechsler and Drechsler (2014); Carr and Wu (2009); Goyal and Saretto (2009); Dubinsky, Johannes, Kaeck and Seeger (2019); Bryzgalova, Pavlova and Sikorskaya (2023); Beckmeyer, Branger and Gayda (2023); Schmeling, Schrimpf and Todorov (BIS WP 1087, 2023); He, Manela, Ross and von Wachter (2022); Loesch et al. (2021); Qin, Zhou and Gervais (2022). Factor proxy ETFs (SPY, IWM, MTUM, USMV, QUAL, VLUE) are named only; no data is redistributed.
+
+v2.0.0 (2026-11-25), both skills, all own implementations:
+- reddygopalkrishna/trading-skills (MIT with a trading disclaimer): order-preview layout in trading-execution/scripts/preview.py (mode header, order line, notional, purpose, stop note, confirmation handle with expiry). Its gate design (confirmation prompts) was not used; the nonce gate is original.
+- HKUDS/Vibe-Trading (MIT): SignalEngine and BaseEngine abstraction studied for scripts/engine.py; no code or dependencies used.
+- Jakeschincariol/trader-skill (MIT): idea-sourcing design (House Clerk PTRs, 13F, SEC User-Agent, one alert per filing) in references/idea-sourcing.md; no code used.
+- staskh/trading_skills (MIT): IBKR options fields and delayed-frozen handling described in references/options.md; no code used; this skill reads IBKR only through its MCP connector.
+- alpaca-mcp-server 2.4.1 (MIT): paper/live base-URL rule read from its server.py to write preview.py's mode check; no code copied.
+- Dependency locks in assets/locks/ are generated by uv from public package metadata.
