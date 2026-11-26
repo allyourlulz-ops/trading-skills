@@ -25,11 +25,12 @@ m = json.load(open(os.path.join(HERE, "..", "assets", "mandate.example.json")))
 m.update({"probe": True, "granted_on": "2026-11-20", "expires_on": "2026-12-15"})
 mp, op, rp = (os.path.join(TMP, x) for x in ("m.json", "o.json", "r.json"))
 sys.path.insert(0, SCRIPTS)
-from gate import fingerprint, issue
+from gate import file_sha256, fingerprint, issue
 GD = os.path.join(TMP, "gate")
 def mcheck(order, **kw):
     mode = kw.get("mode", m.get("mode", "paper"))
-    tok = issue("PASS", fingerprint(order), mode, os.path.join(HERE, "..", "assets", "risk-limits.json"), d=GD,
+    lp = os.path.join(HERE, "..", "assets", "risk-limits.json")
+    tok = issue("PASS", fingerprint(order, file_sha256(lp)), mode, lp, d=GD,
                 now="2026-11-24T10:00:00", extra={"equity": 25000, "checked_at": "2026-11-24T10:00:00-05:00"})
     json.dump({"verdict": "pass", "nonce": tok}, open(rp, "w"))
     json.dump(dict(m, **kw), open(mp, "w")); json.dump(order, open(op, "w"))
