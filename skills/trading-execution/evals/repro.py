@@ -34,7 +34,7 @@ FIXTURE_DIR/meta.json
   contract, instrument, bar or context file is replaced by the fixed --now (templates for recordings).
 
 Volatile fields are normalised before the diff: the nonce's expiry, random part and MAC, the
-preview's "Nonce: ..." line, checked_at and clock.system_drift_s. Everything else must match exactly. The gate dir is a
+preview's "Nonce: ..." line, checked_at, clock.system_drift_s and gate_dir (a temp path). Everything else must match exactly. The gate dir is a
 fresh temp dir outside the repository, removed afterwards.
 """
 import argparse, json, os, re, shutil, subprocess, sys, tempfile
@@ -50,7 +50,7 @@ NONCE_RE = re.compile(r"RC2\.(PASS|FAIL|OVERRIDE)\.([0-9a-f]{16})\.(paper|live|u
 
 
 # checked_at and the clock's drift from the machine running the replay change on every run
-VOLATILE = {"checked_at", "system_drift_s"}
+VOLATILE = {"checked_at", "system_drift_s", "gate_dir"}
 
 
 class Waiting(Exception):
