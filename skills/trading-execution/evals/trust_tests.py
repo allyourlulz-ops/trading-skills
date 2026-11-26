@@ -462,6 +462,54 @@ def T5_control_reconciled_entry_is_auto_ok(e):
     return mx == 0 and out.get("verdict") == "AUTO_OK"
 
 
+# ---------------------------------------------------------------- T6 limits contents bound to the nonce
+def checked(e, limits=None):
+    lp = e.write(LIMITS if limits is None else limits, "limits_t6.json")
+    op = e.write(ORDER, "order_t6.json")
+    ex, out = e.run("risk_check.py", "--order", op, "--portfolio", e.write(PORTFOLIO), "--mode", "paper",
+                    "--limits", lp, "--gate-dir", e.gate, "--now", NOW, "--contract", e.write(quote_contract("AAPL")))
+    return out, op, lp
+
+
+@test
+def T6_verify_without_limits_fails_closed(e):
+    out, op, lp = checked(e)
+    vx, v = e.run("gate.py", "verify", "--nonce", out.get("nonce"), "--order", op, "--mode", "paper", "--gate-dir",
+                  e.gate, "--now", NOW, "--no-consume")
+    return out.get("verdict") == "pass" and vx == 1 and v.get("gate") == "CLOSED"
+
+
+@test
+def T6_tampered_limits_close_the_preview(e):
+    out, op, lp = checked(e)
+    json.dump(dict(LIMITS, max_loss_per_trade=10 ** 6), open(lp, "w"))
+    rp = e.write(out, "risk_t6.json")
+    vx, v = e.run("preview.py", "--order", op, "--risk", rp, "--config", os.path.join(F, "cfg_paper.json"), "--limits", lp,
+                  "--gate-dir", e.gate, "--now", NOW, "--json")
+    return vx == 1 and v.get("gate") == "CLOSED"
+
+
+@test
+def T6_fingerprint_binds_the_limits_contents(e):
+    a, _, _ = checked(e)
+    b, _, _ = checked(e, dict(LIMITS, max_order=LIMITS["max_order"] + 0))  # same values, re-serialised
+    c, _, _ = checked(e, dict(LIMITS, min_reward_risk=1.4))
+    sys.path.insert(0, SCRIPTS)
+    import gate
+    return a.get("fingerprint") != gate.fingerprint(ORDER) and a.get("fingerprint") != c.get("fingerprint") \
+        and a.get("limits_sha256") and a.get("limits_sha256") != c.get("limits_sha256")
+
+
+@test
+def T6_missing_limits_file_is_a_fail_not_nolimits(e):
+    code = ("import sys; sys.path.insert(0, %r); import gate\n"
+            "try:\n    tok = gate.issue('PASS', 'f' * 16, 'paper', %r, d=%r)\nexcept ValueError:\n    print('REFUSED'); sys.exit(0)\n"
+            "ok, why, t = gate.verify(tok, {}, 'paper', %r, %r, consume=False)\nprint('OPEN' if ok else 'CLOSED')\n"
+            % (SCRIPTS, os.path.join(e.tmp, "nope.json"), e.gate, os.path.join(e.tmp, "nope.json"), e.gate))
+    p = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    return p.stdout.strip() == "REFUSED"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
