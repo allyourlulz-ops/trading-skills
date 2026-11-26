@@ -27,7 +27,7 @@ bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","close
 
 Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
               "nonce": "RC2....", "mode", "fingerprint", "limits_sha256", "warnings", "override", "checked_at", "clock",
-              "margin", "next"}
+              "margin", "gate_dir", "next"}
 Asset class comes from the instrument spec and the symbol's shape, checked against the order's label
 (ASSET_CLASS, HARD, on any disagreement; see position_size.resolve_asset_class).
 reasons are "CODE: text". HARD codes can never be overridden; SOFT codes can, on paper only, with
@@ -49,7 +49,7 @@ except ImportError:  # py<3.9
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from gate import OVERRIDE_ACK, file_sha256, fingerprint, issue  # noqa: E402
+from gate import OVERRIDE_ACK, file_sha256, fingerprint, issue, resolve_gate_dir  # noqa: E402
 from position_size import InstrumentError, SizingError, resolve_asset_class, size  # noqa: E402
 from data_contract import check as contract_check  # noqa: E402
 
@@ -455,6 +455,7 @@ def _main() -> None:
     a = ap.parse_args()
     ld = lambda p: json.load(open(p)) if p else None  # noqa: E731
     try:
+        gd = resolve_gate_dir(a.gate_dir)  # T7: refused inside the project or skill folder, printed in the output
         L, o, pf = ld(a.limits), ld(a.order), ld(a.portfolio)
         tz = ZoneInfo(L.get("timezone", "America/New_York")) if ZoneInfo else None
         now = parse_ts(a.now) if a.now else datetime.now(tz)
@@ -483,14 +484,14 @@ def _main() -> None:
         if not why:
             verdict = "OVERRIDE"
     ttl = int((L.get("gate") or {}).get("token_ttl_s", 300))
-    nonce = issue(verdict, fp, a.mode, a.limits, reasons, warns, a.gate_dir, ttl, now,
+    nonce = issue(verdict, fp, a.mode, a.limits, reasons, warns, gd, ttl, now,
                   {"symbol": o.get("symbol"), "qty": o.get("qty"),
                    "equity": pf.get("equity"), "checked_at": now.isoformat(),  # read back by mandate.py (T5)
                    "override_reason": (override or {}).get("reason") if verdict == "OVERRIDE" else None,
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
            "nonce": nonce, "mode": a.mode, "fingerprint": fp, "limits_sha256": lsha, "warnings": warns, "override": override,
-           "checked_at": now.isoformat(), "clock": clock, "margin": margin,
+           "checked_at": now.isoformat(), "clock": clock, "margin": margin, "gate_dir": gd,
            "next": ("Do not place this order. " + reasons[0] if verdict == "FAIL" else
                     "Override logged. Preview with --allow-override; the preview prints OVERRIDE." if verdict == "OVERRIDE" else
                     "Show preview.py output with this nonce, then get the user's yes for this exact order.")}
