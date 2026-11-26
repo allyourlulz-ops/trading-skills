@@ -138,6 +138,11 @@ def halt_file(mpath):
 
 
 def check(a):
+    from gate import GateDirError, resolve_gate_dir
+    try:
+        a.gate_dir = resolve_gate_dir(getattr(a, "gate_dir", None))  # T7
+    except GateDirError as e:
+        print(json.dumps(dict(verdict="NEEDS_YES", reasons=["gate: " + str(e)]), indent=2)); sys.exit(1)
     M = json.load(open(a.mandate))
     o = json.load(open(a.order))
     rk = json.load(open(a.risk))
@@ -286,6 +291,8 @@ def status(a):
 
 
 def reconcile(a):
+    from gate import resolve_gate_dir
+    a.gate_dir = resolve_gate_dir(getattr(a, "gate_dir", None))  # T7: refuses inside the project
     L = load_ledger(a.ledger)
     B = json.load(open(a.broker))
     B = B.get("orders", B) if isinstance(B, dict) else B
