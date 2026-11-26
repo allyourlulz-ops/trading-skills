@@ -20,11 +20,14 @@ Commands
       order, limits file unchanged, mode equals --mode, verdict PASS (or OVERRIDE with --allow-override).
       A successful verify marks the nonce used unless --no-consume (one order, one nonce).
   gate.py log [--gate-dir D]     print every override
+  gate.py where [--gate-dir D]   print the resolved gate dir, or refuse it (exit 2)
 
 Overrides are made by risk_check.py --override "reason" --override-ack "<OVERRIDE_ACK>": paper only,
 soft reasons only, appended to overrides.jsonl with the reasons they overrode.
 
-Gate dir: --gate-dir, else $TRADING_GATE_DIR, else ~/.trading-gate. Keep it outside the skill folder.
+Gate dir: --gate-dir, else $TRADING_GATE_DIR, else ~/.trading-gate, resolved through symlinks. It is
+refused (T7) when it sits inside this skill's folder, the repository holding it, or the project the caller
+runs from (nearest ancestor of the cwd with .git or SKILL.md); home and / never count as a project.
 Limit: this stops skipped steps and orders edited after the check. It does not stop an agent that can
 read gate.key and forge a nonce, or one that calls the broker tool directly. Broker-side controls
 (paper keys, the client's per-call permission, Questrade Push Approval) remain the outer wall.
@@ -49,10 +52,55 @@ def fingerprint(order: Dict[str, Any], limits_sha256: Optional[str] = None) -> s
     return hashlib.sha256(body.encode()).hexdigest()[:16]
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+class GateDirError(ValueError):
+    """The gate dir resolves inside a project or skill folder, where the agent's own files live (T7)."""
+
+
+def _project_root(p: str) -> Optional[str]:
+    """Nearest ancestor of p (itself included) holding .git or SKILL.md."""
+    p = os.path.realpath(p)
+    while True:
+        if os.path.exists(os.path.join(p, ".git")) or os.path.exists(os.path.join(p, "SKILL.md")):
+            return p
+        up = os.path.dirname(p)
+        if up == p:
+            return None
+        p = up
+
+
+def forbidden_roots() -> List[Tuple[str, str]]:
+    """(root, label) the gate dir may not sit in: this skill's folder, the repository holding it, and the
+    project the caller runs from. The home directory and / are never treated as a project."""
+    skill = os.path.realpath(os.path.join(HERE, ".."))
+    cands = [(skill, "the skill folder"), (_project_root(HERE), "the repository holding this skill"),
+             (_project_root(os.getcwd()), "the project the caller runs in")]
+    home = os.path.realpath(os.path.expanduser("~"))
+    out = []
+    for r, label in cands:
+        if r and r not in (home, os.path.sep) and all(r != x for x, _ in out):
+            out.append((r, label))
+    return out
+
+
+def resolve_gate_dir(d: Optional[str] = None) -> str:
+    """--gate-dir, else $TRADING_GATE_DIR, else ~/.trading-gate, fully resolved (symlinks included). Refuses a
+    dir inside any forbidden root, before anything is created."""
+    raw = d or os.environ.get("TRADING_GATE_DIR") or os.path.join(os.path.expanduser("~"), ".trading-gate")
+    p = os.path.realpath(os.path.abspath(os.path.expanduser(raw)))
+    for r, label in forbidden_roots():
+        if p == r or p.startswith(r + os.sep):
+            raise GateDirError("gate dir %s is inside %s (%s): the agent's files live there. Keep it outside, "
+                               "e.g. ~/.trading-gate (default) or $TRADING_GATE_DIR" % (p, label, r))
+    return p
+
+
 def gate_dir(d: Optional[str] = None) -> str:
-    d = d or os.environ.get("TRADING_GATE_DIR") or os.path.join(os.path.expanduser("~"), ".trading-gate")
-    os.makedirs(d, mode=0o700, exist_ok=True)
-    return d
+    p = resolve_gate_dir(d)
+    os.makedirs(p, mode=0o700, exist_ok=True)
+    return p
 
 
 def _key(d: str) -> bytes:
@@ -195,19 +243,30 @@ def verify(tok: str, order: Dict[str, Any], mode: str, limits_path: Optional[str
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="cmd", required=True)
-    v = sp.add_parser("verify"); lg = sp.add_parser("log")
+    v = sp.add_parser("verify"); lg = sp.add_parser("log"); wh = sp.add_parser("where")
     v.add_argument("--nonce", required=True); v.add_argument("--order", required=True); v.add_argument("--now")
     v.add_argument("--mode", required=True, choices=["paper", "live"]); v.add_argument("--limits", help="required in effect: without it the gate is CLOSED")
     v.add_argument("--allow-override", action="store_true"); v.add_argument("--no-consume", action="store_true")
-    for p in (v, lg):
+    for p in (v, lg, wh):
         p.add_argument("--gate-dir")
     a = ap.parse_args()
+    if a.cmd == "where":
+        try:
+            print(json.dumps({"gate_dir": resolve_gate_dir(a.gate_dir), "ok": True,
+                              "forbidden_roots": [r for r, _ in forbidden_roots()]}, indent=2))
+        except GateDirError as e:
+            print(json.dumps({"gate_dir": None, "ok": False, "error": str(e)}, indent=2)); sys.exit(2)
+        return
+    try:
+        gd = resolve_gate_dir(a.gate_dir)
+    except GateDirError as e:
+        print(json.dumps({"gate": "CLOSED", "gate_dir": None, "reasons": [str(e)]}, indent=2)); sys.exit(2)
     if a.cmd == "log":
         p = os.path.join(gate_dir(a.gate_dir), "overrides.jsonl")
         print(open(p).read() if os.path.exists(p) else ""); return
     ok, why, t = verify(a.nonce, json.load(open(a.order)), a.mode, a.limits, a.gate_dir, a.allow_override,
                         a.now, not a.no_consume)
-    print(json.dumps({"gate": "OPEN" if ok else "CLOSED", "verdict": (t or {}).get("verdict"),
+    print(json.dumps({"gate": "OPEN" if ok else "CLOSED", "gate_dir": gd, "verdict": (t or {}).get("verdict"),
                       "mode": (t or {}).get("mode"), "nonce": a.nonce.strip(), "reasons": why}, indent=2))
     sys.exit(0 if ok else 1)
 
