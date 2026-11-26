@@ -15,6 +15,7 @@
   "equity": 25000,
   "paper": true,
   "positions": [],
+  "settled_cash": 20000,
   "today": {
    "orders": 0,
    "planned_loss": 0,
@@ -84,6 +85,12 @@
     "paper": true,
     "stop_slippage_bps": 10,
     "timezone": "America/New_York"
+   },
+   "margin": {
+    "declared": null,
+    "order_notional": 10070.0,
+    "settled_cash": 20000,
+    "uses_margin": false
    },
    "mode": "paper",
    "next": "Do not place this order. SIZE: qty 53 > sized max 52 (binding: position); send qty 52 and check again",
