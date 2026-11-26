@@ -1,0 +1,14 @@
+{
+ "symbol": "SPY",
+ "side": "buy",
+ "qty": 1,
+ "type": "limit",
+ "limit_price": 500.0,
+ "stop_price": 490.0,
+ "target_price": 520.0,
+ "time_in_force": "day",
+ "asset_class": "etf",
+ "order_class": "bracket",
+ "client_order_id": "repro-paper-spy-1",
+ "paper": true
+}
