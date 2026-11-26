@@ -1,0 +1,14 @@
+{
+ "synthetic": false,
+ "description": "Slot for REAL Alpaca paper responses recorded by evals/record_alpaca.py into alpaca/. Until they are recorded, repro skips this fixture (fails with --require-recorded). The account, clock and positions are recorded; the order and the quote contract below are templates written by hand (the recorder places no orders and fetches no quotes).",
+ "now": "from_clock",
+ "mode": "paper",
+ "contract": "contract.json",
+ "server": "alpaca",
+ "today": {
+  "trades": 0,
+  "orders": 0,
+  "planned_loss": 0
+ },
+ "broker": "alpaca_paper"
+}
