@@ -27,6 +27,7 @@
   "equity": 25000,
   "paper": true,
   "positions": [],
+  "settled_cash": 20000,
   "today": {
    "orders": 0,
    "planned_loss": 0,
@@ -93,6 +94,12 @@
     "paper": true,
     "stop_slippage_bps": 10,
     "timezone": "America/New_York"
+   },
+   "margin": {
+    "declared": null,
+    "order_notional": 9880.0,
+    "settled_cash": 20000,
+    "uses_margin": false
    },
    "mode": "paper",
    "next": "Show preview.py output with this nonce, then get the user's yes for this exact order.",
