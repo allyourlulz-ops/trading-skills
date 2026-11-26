@@ -108,6 +108,24 @@ def issue(verdict: str, fp: str, mode: Optional[str], limits_path: Optional[str]
     return tok
 
 
+def sign_obj(obj: Dict[str, Any], d: Optional[str] = None, tag: str = "MS1") -> str:
+    """HMAC, with the gate key, over a JSON object minus its "mac" / "signature" fields (mandates, reconcile
+    stamps). Editing any other field afterwards makes check_obj fail."""
+    body = json.dumps({k: v for k, v in obj.items() if k not in ("mac", "signature")}, sort_keys=True,
+                      separators=(",", ":"))
+    return tag + "." + _mac(_key(gate_dir(d)), tag + "|" + body)
+
+
+def check_obj(obj: Dict[str, Any], field: str, d: Optional[str] = None, tag: str = "MS1") -> bool:
+    return hmac.compare_digest(sign_obj(obj, d, tag), str(obj.get(field, "")))
+
+
+def issued_row(tok: str, d: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """The gate log's own record of an issued nonce (what risk_check saw), or None."""
+    tok = str(tok).strip()
+    return next((r for r in _log(gate_dir(d)) if r.get("nonce") == tok and r.get("event") == "issued"), None)
+
+
 def parse(tok: str) -> Optional[Dict[str, str]]:
     p = str(tok).strip().split(".")
     if len(p) != 8 or p[0] != VERSION:
