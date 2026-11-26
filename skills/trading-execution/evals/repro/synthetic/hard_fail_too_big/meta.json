@@ -1,0 +1,14 @@
+{
+ "synthetic": true,
+ "now": "2026-11-25T10:30:00-05:00",
+ "mode": "paper",
+ "limits": "limits.json",
+ "contract": "contract.json",
+ "server": "alpaca",
+ "description": "SYNTHETIC. Same AAPL buy at 53 shares, one over the sized max, with an override attempt: SIZE is HARD, the override is refused, preview CLOSED, no fill.",
+ "override": {
+  "reason": "I know better than the sizer",
+  "ack": "I override the risk gate for this order and accept the loss"
+ },
+ "expect": "HARD fail"
+}
