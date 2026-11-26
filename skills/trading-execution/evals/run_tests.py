@@ -30,9 +30,14 @@ GD = os.path.join(TMP, "gate")
 def mcheck(order, **kw):
     mode = kw.get("mode", m.get("mode", "paper"))
     tok = issue("PASS", fingerprint(order), mode, os.path.join(HERE, "..", "assets", "risk-limits.json"), d=GD,
-                now="2026-11-24T10:00:00")
+                now="2026-11-24T10:00:00", extra={"equity": 25000, "checked_at": "2026-11-24T10:00:00-05:00"})
     json.dump({"verdict": "pass", "nonce": tok}, open(rp, "w"))
     json.dump(dict(m, **kw), open(mp, "w")); json.dump(order, open(op, "w"))
+    # T5: entries need a MATCHED reconcile with the broker's equity first
+    json.dump([], open(os.path.join(TMP, "fills.json"), "w")); json.dump({"equity": "25000"}, open(os.path.join(TMP, "acct.json"), "w"))
+    subprocess.run([sys.executable, "mandate.py", "reconcile", "--broker", os.path.join(TMP, "fills.json"), "--account",
+                    os.path.join(TMP, "acct.json"), "--ledger", os.path.join(TMP, "l.jsonl"), "--mandate", mp,
+                    "--gate-dir", GD], cwd=SCRIPTS, capture_output=True)
     p = subprocess.run([sys.executable, "mandate.py", "check", "--order", op, "--risk", rp, "--mandate", mp,
                         "--ledger", os.path.join(TMP, "l.jsonl"), "--now", "2026-11-24T10:00:00", "--gate-dir", GD], cwd=SCRIPTS, capture_output=True, text=True)
     return json.loads(p.stdout)
