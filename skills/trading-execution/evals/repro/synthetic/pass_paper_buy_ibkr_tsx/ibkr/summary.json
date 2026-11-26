@@ -1,0 +1,54 @@
+{
+ "netliquidation": {
+  "amount": 50000.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "totalcashvalue": {
+  "amount": 48900.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "availablefunds": {
+  "amount": 45000.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "buyingpower": {
+  "amount": 45000.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "equitywithloanvalue": {
+  "amount": 50000.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "grosspositionvalue": {
+  "amount": 1100.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
+ },
+ "accountready": {
+  "value": "true",
+  "isNull": false
+ }
+}
