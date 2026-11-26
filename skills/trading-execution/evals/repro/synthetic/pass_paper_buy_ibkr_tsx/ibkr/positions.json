@@ -1,0 +1,19 @@
+[
+ {
+  "acctId": "DU-REDACTED",
+  "conid": 4815747,
+  "contractDesc": "ENB",
+  "ticker": "ENB",
+  "position": 20.0,
+  "mktPrice": 55.0,
+  "mktValue": 1100.0,
+  "currency": "CAD",
+  "avgCost": 54.2,
+  "avgPrice": 54.2,
+  "realizedPnl": 0.0,
+  "unrealizedPnl": 16.0,
+  "assetClass": "STK",
+  "listingExchange": "TSE",
+  "multiplier": null
+ }
+]
