@@ -28,6 +28,11 @@
   "equity": 25000.0,
   "paper": true,
   "positions": [],
+  "positions_source": {
+   "as_of": "2026-11-25T10:30:00.000000-05:00",
+   "source": "alpaca:GET /v2/positions (https://paper-api.alpaca.markets)"
+  },
+  "settled_cash": 20000.0,
   "today": {
    "orders": 0,
    "planned_loss": 0,
@@ -94,6 +99,12 @@
     "paper": true,
     "stop_slippage_bps": 10,
     "timezone": "America/New_York"
+   },
+   "margin": {
+    "declared": null,
+    "order_notional": 9880.0,
+    "settled_cash": 20000.0,
+    "uses_margin": false
    },
    "mode": "paper",
    "next": "Show preview.py output with this nonce, then get the user's yes for this exact order.",
