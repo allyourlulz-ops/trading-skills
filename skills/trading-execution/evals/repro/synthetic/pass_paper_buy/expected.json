@@ -42,7 +42,7 @@
    "endpoint": "https://paper-api.alpaca.markets",
    "gate": "OPEN",
    "mode": "paper",
-   "nonce": "RC2.PASS.7f8f3c06e81ee30d.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.PASS.8f23f94fa262f103.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": false,
    "preview": [
     "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
@@ -51,7 +51,7 @@
     "Purpose: open position",
     "Stop: sent as a bracket leg",
     "client_order_id: repro-pass-paper-buy",
-    "Nonce: RC2.PASS.7f8f3c06e81ee30d.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
+    "Nonce: RC2.PASS.8f23f94fa262f103.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
     "Gate: OPEN. Send only after the user's explicit yes for this exact order."
    ],
    "preview_first_line": "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
@@ -68,7 +68,8 @@
     "source": "alpaca:get_clock",
     "tolerance_s": 120
    },
-   "fingerprint": "7f8f3c06e81ee30d",
+   "fingerprint": "8f23f94fa262f103",
+   "limits_sha256": "de832bc8ec271b35fa3f465a7ba036022b016fcde122dd3c85245caa0f97ab9f",
    "limits_used": {
     "allow_crypto": false,
     "allow_margin": false,
@@ -103,7 +104,7 @@
    },
    "mode": "paper",
    "next": "Show preview.py output with this nonce, then get the user's yes for this exact order.",
-   "nonce": "RC2.PASS.7f8f3c06e81ee30d.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.PASS.8f23f94fa262f103.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": null,
    "reasons": [],
    "sizing": {
