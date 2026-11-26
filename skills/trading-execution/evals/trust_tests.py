@@ -10,6 +10,8 @@ Usage: trust_tests.py [-k SUBSTRING ...]     exit 0 when every selected test pas
 """
 import argparse, copy, json, os, shutil, subprocess, sys, tempfile, time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
 SCRIPTS = os.path.join(SKILL, "scripts")
@@ -831,6 +833,26 @@ def T9_gate_halt_stops_the_mandate_exits_included(e):
     o = dict(EXIT, client_order_id="m-aapl-x", strategy="ema9-pullback-v2")
     mx, out, risk = mandate_check(e, o, ledger=led, rc_kw={"pf": pf_with(positions=HELD_AAPL), "contract": None})
     return risk.get("verdict") == "pass" and out.get("verdict") == "HALT"
+
+
+# ---------------------------------------------------------------- P13 the two limits copies
+RES_LIMITS = os.path.join(REPO, "skills", "trading-research", "assets", "risk-limits.json")
+EXEC_LIMITS = os.path.join(SKILL, "assets", "risk-limits.json")
+
+
+@test
+def P13_shipped_limits_copies_differ_only_where_intended(e):
+    import limits_guard
+    return os.path.exists(RES_LIMITS) and limits_guard.drift(jl(EXEC_LIMITS), jl(RES_LIMITS)) == []
+
+
+@test
+def P13_a_changed_hard_limit_in_one_copy_is_flagged(e):
+    import limits_guard
+    r = dict(jl(RES_LIMITS), max_loss_per_trade=10 ** 6)
+    x = dict(jl(EXEC_LIMITS), allow_margin=True)
+    return any("max_loss_per_trade" in d for d in limits_guard.drift(jl(EXEC_LIMITS), r)) and \
+        any("allow_margin" in d for d in limits_guard.drift(x, jl(RES_LIMITS)))
 
 
 def main():
