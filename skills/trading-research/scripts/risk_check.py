@@ -484,6 +484,7 @@ def _main() -> None:
     ttl = int((L.get("gate") or {}).get("token_ttl_s", 300))
     nonce = issue(verdict, fp, a.mode, a.limits, reasons, warns, a.gate_dir, ttl, now,
                   {"symbol": o.get("symbol"), "qty": o.get("qty"),
+                   "equity": pf.get("equity"), "checked_at": now.isoformat(),  # read back by mandate.py (T5)
                    "override_reason": (override or {}).get("reason") if verdict == "OVERRIDE" else None,
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
