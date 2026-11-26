@@ -13,7 +13,8 @@ Any change to the order after the check (account, time in force, legs, qty, pric
 Commands
   gate.py verify --nonce N --order order.json --mode paper|live [--limits L] [--gate-dir D]
                  [--allow-override] [--no-consume] [--now ISO]
-      OPEN only if: mac valid, issued here (gate-log.jsonl), unused, not expired, fingerprint equals this
+      OPEN only if: mac valid, issued here (gate-log.jsonl), unused, not expired (by --now AND by this
+      machine's clock since issue: a rewound --now cannot reopen a nonce; TTL capped at 300 s), fingerprint equals this
       order, limits file unchanged, mode equals --mode, verdict PASS (or OVERRIDE with --allow-override).
       A successful verify marks the nonce used unless --no-consume (one order, one nonce).
   gate.py log [--gate-dir D]     print every override
@@ -34,6 +35,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 OVERRIDE_ACK = "I override the risk gate for this order and accept the loss"
 DEFAULT_TTL = 300
+MAX_TTL = 300  # nonces live at most 5 minutes, whatever the limits file says
 VERSION = "RC2"
 
 
@@ -94,11 +96,13 @@ def issue(verdict: str, fp: str, mode: Optional[str], limits_path: Optional[str]
         raise ValueError("verdict must be PASS, FAIL or OVERRIDE")
     d = gate_dir(d)
     mode = mode if mode in ("paper", "live") else "unknown"
-    exp = int(_now(now)) + int(ttl)
+    ttl = max(1, min(int(ttl), MAX_TTL))
+    exp = int(_now(now)) + ttl
     body = ".".join([VERSION, verdict, fp, mode, str(exp), file_sha8(limits_path), secrets.token_hex(4)])
     tok = body + "." + _mac(_key(d), body)
     _append(d, "gate-log.jsonl", dict(event="issued", nonce=tok, verdict=verdict, fingerprint=fp, mode=mode,
-                                      expires=exp, reasons=list(reasons), warnings=list(warnings), **(extra or {})))
+                                      expires=exp, ttl=ttl, wall=round(time.time(), 3),
+                                      reasons=list(reasons), warnings=list(warnings), **(extra or {})))
     if verdict == "OVERRIDE":
         _append(d, "overrides.jsonl", dict(nonce=tok, fingerprint=fp, mode=mode, at=int(_now(now)), **(extra or {})))
     return tok
@@ -121,8 +125,15 @@ def verify(tok: str, order: Dict[str, Any], mode: str, limits_path: Optional[str
     if not hmac.compare_digest(_mac(_key(d), tok.rsplit(".", 1)[0]), t["mac"]):
         return False, ["nonce signature invalid: not issued by risk_check with this gate key"], t
     log = _log(d)
-    if not any(r.get("nonce") == tok and r.get("event") == "issued" for r in log):
+    row = next((r for r in log if r.get("nonce") == tok and r.get("event") == "issued"), None)
+    if row is None:
         why.append("nonce not in gate-log.jsonl")
+    elif not isinstance(row.get("wall"), (int, float)):
+        why.append("nonce issued without a wall-clock stamp (older gate); run risk_check again")
+    elif time.time() - float(row["wall"]) > min(int(row.get("ttl", MAX_TTL)), MAX_TTL):
+        # P1: expiry also runs on this machine's clock, so a rewound --now cannot reopen the nonce
+        why.append("nonce expired by the gate's own clock (issued %ds ago); run risk_check again"
+                   % int(time.time() - float(row["wall"])))
     if any(r.get("nonce") == tok and r.get("event") == "used" for r in log):
         why.append("nonce already used for an order; run risk_check again")
     if _now(now) > int(t["exp"]):
