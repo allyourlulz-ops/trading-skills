@@ -158,6 +158,74 @@ def T1_control_etf_with_spec_passes(e):
     return passed(e.rc(order=o, instrument={"asset_class": "etf"}))
 
 
+# ---------------------------------------------------------------- T2 --now anchored to the broker clock (P1)
+def pf_clock(**clk):
+    pf = copy.deepcopy(PORTFOLIO)
+    pf["clock"] = dict(pf["clock"], **clk)
+    pf["clock"] = {k: v for k, v in pf["clock"].items() if v is not None}
+    return pf
+
+
+@test
+def T2_clock_without_broker_timestamp_fails(e):
+    return failed(e.rc(pf=pf_clock(as_of=None)), "NO_CLOCK")
+
+
+@test
+def T2_now_far_from_broker_clock_fails(e):
+    return failed(e.rc(now="2026-11-25T11:30:00-05:00", contract=quote_contract("AAPL", "2026-11-25T11:30:00-05:00")),
+                  "CLOCK_DRIFT")
+
+
+@test
+def T2_now_within_tolerance_passes_and_reports_drift(e):
+    ex, out = e.rc(now="2026-11-25T10:31:00-05:00")
+    c = out.get("clock") or {}
+    return passed((ex, out)) and c.get("drift_s") == 60 and c.get("tolerance_s") == 120 and c.get("source")
+
+
+@test
+def T2_naive_now_refused(e):
+    return failed(e.rc(now="2026-11-25T10:30:00", contract=quote_contract("AAPL")))
+
+
+@test
+def T2_crypto_needs_broker_clock(e):
+    o = jl(os.path.join(F, "order_btc.json"))
+    pf = copy.deepcopy(PORTFOLIO); pf.pop("clock")
+    sat = "2026-11-28T03:00:00-05:00"
+    return failed(e.rc(order=o, pf=pf, limits=LIMITS_OPEN, now=sat, contract=quote_contract("BTC/USD", sat)), "NO_CLOCK")
+
+
+@test
+def T2_live_check_far_from_system_clock_fails(e):
+    pf = dict(PORTFOLIO, paper=False)
+    return failed(e.rc(pf=pf, mode="live", limits=dict(LIMITS, paper=False)), "CLOCK_DRIFT")
+
+
+@test
+def T2_P1_rewound_now_cannot_reopen_an_expired_nonce(e):
+    lim = dict(LIMITS, gate={"token_ttl_s": 1})
+    lp = e.write(lim, "lim_ttl1.json")
+    op = e.write(ORDER, "o.json")
+    ex, out = e.run("risk_check.py", "--order", op, "--portfolio", e.write(PORTFOLIO), "--mode", "paper",
+                    "--limits", lp, "--gate-dir", e.gate, "--now", NOW, "--contract", e.write(quote_contract("AAPL")))
+    if not passed((ex, out)):
+        return False
+    time.sleep(2.2)
+    vx, v = e.run("gate.py", "verify", "--nonce", out["nonce"], "--order", op, "--mode", "paper", "--limits", lp,
+                  "--gate-dir", e.gate, "--now", NOW, "--no-consume")
+    return vx == 1 and v.get("gate") == "CLOSED" and any("expired" in r for r in v.get("reasons", []))
+
+
+@test
+def T2_nonce_ttl_capped_at_300s(e):
+    ex, out = e.rc(limits=dict(LIMITS, gate={"token_ttl_s": 86400}))
+    from datetime import datetime
+    exp = int(str(out.get("nonce", "")).split(".")[4]) if out.get("nonce") else 10 ** 12
+    return passed((ex, out)) and exp - datetime.fromisoformat(NOW).timestamp() <= 300
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
