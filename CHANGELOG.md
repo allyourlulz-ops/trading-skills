@@ -2,6 +2,14 @@
 
 Earlier releases are summarised, with their sources, in NOTICE.
 
+## 2.2.0-dev (unreleased): Phase 1, trust boundary
+
+Both skills move to 2.2.0-dev. Register IDs are from the hardening plan; P-numbers are the Phase 0
+provisional findings in docs/AUDIT.md. Tests: `skills/trading-execution/evals/trust_tests.py`.
+
+### Fixed
+- T1 (P9): `asset_class` is derived from the instrument spec and the symbol's shape (OCC option symbol, BASE/QUOTE crypto pair, exchange ticker), not taken from the order's label. Order/spec disagreement, an option symbol labelled equity, a ticker labelled crypto or option, an `etf` label without a spec saying etf, and a non-option with multiplier 100 each fail HARD with `ASSET_CLASS`. `position_size.py --asset-class` is now optional and checked the same way. Tests `T1_*`.
+
 ## 2.1.1 (2026-11-25)
 
 Both skills (trading-research, trading-execution) move to 2.1.1.
