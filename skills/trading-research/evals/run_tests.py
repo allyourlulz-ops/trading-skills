@@ -508,5 +508,28 @@ g = subprocess.run([sys.executable, os.path.join(HERE, "golden", "run_golden.py"
 check("golden validate_backtest fixtures", g.returncode == 0, g.stdout[-1500:])
 print(g.stdout.strip().splitlines()[-1] if g.stdout.strip() else "")
 
+# order-flow MCP: github commit pin, and crypto order-flow context gates
+import importlib, json as _j
+from datetime import datetime as _dt
+sys.path.insert(0, SCRIPTS)
+_ml = importlib.import_module("mcp_lock"); _rc = importlib.import_module("risk_check")
+_lock = _j.load(open(os.path.join(HERE, "..", "assets", "mcp-lock.json")))
+_sha = _lock["servers"]["orderflow"]["commit"]
+def _cfg(arg):
+    return {"mcpServers": {"orderflow": {"command": "npx", "args": ["-y", arg]}}}
+_L = _j.load(open(os.path.join(HERE, "..", "assets", "risk-limits.json")))
+_o = {"symbol": "BTC/USD", "side": "buy", "asset_class": "crypto"}
+def _tg(of, side="buy"):
+    b, w = [], []
+    m = _rc.timing_gates(_L, dict(_o, side=side), {"orderflow": of}, _dt(2026, 11, 25, 12), b, w)
+    return m, b, w
+for name, cond in (
+        ("orderflow pinned by commit PINNED", _ml.check_config(_cfg("github:zadescoxp/order-flow-mcp#" + _sha), _lock)["verdict"] == "PINNED"),
+        ("orderflow on a branch UNPINNED", _ml.check_config(_cfg("github:zadescoxp/order-flow-mcp"), _lock)["verdict"] == "UNPINNED"),
+        ("liquidation cascade blocks crypto entry", bool(_tg({"liq_cascade": True, "stream_age_s": 600})[1])),
+        ("warming-up stream is ignored", not _tg({"liq_cascade": True, "warming_up": True})[1]),
+        ("crowded funding cuts long size", _tg({"funding_8h_pct": 0.15, "stream_age_s": 600})[0] < 1),
+        ("crowded funding leaves short size", _tg({"funding_8h_pct": 0.15, "stream_age_s": 600}, side="sell")[0] == 1)):
+    print(("PASS " if cond else "FAIL ") + name); fails += [] if cond else [name]
 print(f"\n{len(fails)} failed" if fails else "\nall passed")
 sys.exit(1 if fails else 0)
