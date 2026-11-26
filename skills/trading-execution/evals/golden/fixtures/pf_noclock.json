@@ -3,6 +3,7 @@
  "base_currency": "USD",
  "equity": 25000,
  "buying_power": 20000,
+ "settled_cash": 20000,
  "paper": true,
  "positions": [],
  "today": {
