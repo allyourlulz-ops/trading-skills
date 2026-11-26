@@ -226,6 +226,27 @@ def T2_nonce_ttl_capped_at_300s(e):
     return passed((ex, out)) and exp - datetime.fromisoformat(NOW).timestamp() <= 300
 
 
+# ---------------------------------------------------------------- P3 entry window in the limits timezone
+def at(ts):
+    return dict(now=ts, pf=pf_clock(as_of=ts), contract=quote_contract("AAPL", ts))
+
+
+@test
+def P3_utc_now_inside_the_et_window_passes(e):
+    return passed(e.rc(**at("2026-11-25T16:00:00+00:00")))  # 11:00 New York
+
+
+@test
+def P3_pacific_now_after_the_et_cutoff_fails(e):
+    return failed(e.rc(**at("2026-11-25T12:45:00-08:00")), "ENTRY_WINDOW")  # 15:45 New York, cutoff 15:30
+
+
+@test
+def P3_checked_at_is_in_the_limits_timezone(e):
+    ex, out = e.rc(**at("2026-11-25T16:00:00+00:00"))
+    return str(out.get("checked_at", "")).endswith("-05:00") and "T11:00" in str(out.get("checked_at"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
