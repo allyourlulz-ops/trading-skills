@@ -9,6 +9,7 @@ provisional findings in docs/AUDIT.md. Tests: `skills/trading-execution/evals/tr
 
 ### Fixed
 - T1 (P9): `asset_class` is derived from the instrument spec and the symbol's shape (OCC option symbol, BASE/QUOTE crypto pair, exchange ticker), not taken from the order's label. Order/spec disagreement, an option symbol labelled equity, a ticker labelled crypto or option, an `etf` label without a spec saying etf, and a non-option with multiplier 100 each fail HARD with `ASSET_CLASS`. `position_size.py --asset-class` is now optional and checked the same way. Tests `T1_*`.
+- T2 (P1): every risk_check needs `portfolio.clock.as_of` and `source` (the broker clock's own timestamp, crypto included); `--now`, or this machine's time when it is omitted, must be within `gate.clock_tolerance_s` (new, default 120, capped at 300) of it, else HARD `CLOCK_DRIFT` / `NO_CLOCK`. The drift is reported in a new `clock` output block. A naive `--now` (no UTC offset) is refused. A live check must also be within the tolerance of the machine clock; a paper replay gets a warning. P1: nonce expiry now also runs on the gate's own wall clock from issue (`wall`, `ttl` in the gate log), so a rewound `--now` cannot reopen an expired nonce, and `token_ttl_s` is capped at 300 s. Golden change: `rc_crypto_saturday` now uses `pf_clock_sat.json` (a Saturday broker clock); repro expected.json files gain the `clock` block and the paper-replay warning. Tests `T2_*`.
 
 ## 2.1.1 (2026-11-25)
 
