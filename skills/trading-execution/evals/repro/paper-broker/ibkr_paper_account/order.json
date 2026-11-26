@@ -1,0 +1,15 @@
+{
+ "symbol": "RY",
+ "side": "buy",
+ "qty": 1,
+ "type": "limit",
+ "limit_price": 170.0,
+ "stop_price": 165.0,
+ "target_price": 182.0,
+ "time_in_force": "day",
+ "asset_class": "equity",
+ "order_class": "bracket",
+ "client_order_id": "repro-paper-ibkr-ry-1",
+ "risk_pct": 1,
+ "paper": true
+}
