@@ -870,6 +870,35 @@ def P13_a_changed_hard_limit_in_one_copy_is_flagged(e):
         any("allow_margin" in d for d in limits_guard.drift(x, jl(RES_LIMITS)))
 
 
+# ---------------------------------------------------------------- invariant: every new code is HARD
+ACK = "I override the risk gate for this order and accept the loss"
+OVR = ("--override", "paper test of the phase 1 hard codes", "--override-ack", ACK)
+
+
+def refused_override(res, code):
+    ex, out = res
+    ov = out.get("override") or {}
+    return ex == 1 and code in codes(out) and ov.get("accepted") is False and \
+        str(out.get("nonce", "")).startswith("RC2.FAIL.")
+
+
+@test
+def HARD_new_phase1_codes_cannot_be_overridden(e):
+    os.makedirs(e.gate, exist_ok=True)
+    cases = [
+        ("ASSET_CLASS", dict(instrument={"asset_class": "etf"})),
+        ("NO_CLOCK", dict(pf=pf_clock(as_of=None))),
+        ("CLOCK_DRIFT", dict(now="2026-11-25T11:30:00-05:00", contract=quote_contract("AAPL", "2026-11-25T11:30:00-05:00"))),
+        ("MARGIN_OFF", dict(pf=pf_with(settled_cash=1000))),
+        ("NO_CASH", dict(pf=pf_with(settled_cash=None))),
+        ("INSTRUMENT", dict(instrument={"session": "24x7"})),
+        ("EXIT_UNVERIFIED", dict(order=EXIT, pf=pf_with(positions=HELD_AAPL, positions_source=None), contract=None)),
+    ]
+    ok = all(refused_override(e.rc(extra=OVR, **kw), code) for code, kw in cases)
+    open(os.path.join(e.gate, "HALT"), "w").write("test")
+    return ok and refused_override(e.rc(extra=OVR), "GATE_HALT")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
