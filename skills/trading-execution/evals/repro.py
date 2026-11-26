@@ -13,6 +13,7 @@ Stdlib only, no network. Every step is the real script, run as a subprocess.
   risk_check scripts/risk_check.py with the fixture's limits, contract and fixed --now
   preview    scripts/preview.py --json with the risk result, the MCP config and the same --now
   fill       simulated: only when the preview gate is OPEN; filled at the limit price, never sent
+  verify_fill scripts/verify_fill.py on that fill (T9): must say MATCH
 
 Usage
   repro.py FIXTURE_DIR [FIXTURE_DIR ...]      replay and diff; exit 1 on any diff or error
@@ -225,17 +226,23 @@ def replay(d):
         if meta.get("allow_override"):
             pv.append("--allow-override")
         pv_exit, pv_out = _run(pv)
-        fill = None
+        fill, vf = None, None
         if pv_exit == 0 and pv_out.get("gate") == "OPEN":
             px = order.get("limit_price") or order.get("est_price")
             fill = {"simulated": True, "status": "filled", "client_order_id": order.get("client_order_id"),
                     "symbol": order.get("symbol"), "side": order.get("side"), "qty": order.get("qty"),
                     "filled_qty": order.get("qty"), "filled_avg_price": px, "type": order.get("type", "limit"),
                     "time_in_force": order.get("time_in_force", "day"), "filled_at": now}
+            # T9: the post-fill re-check against the nonce (the simulated fill carries no wall-clock time)
+            fp = os.path.join(work, "fill.json")
+            json.dump({k: v for k, v in fill.items() if k not in ("simulated", "filled_at")}, open(fp, "w"))
+            vx, vo = _run([os.path.join(SCRIPTS, "verify_fill.py"), "--risk", rp, "--order", op, "--fill", fp,
+                           "--limits", limits, "--gate-dir", gate])
+            vf = {"exit": vx, "verdict": vo.get("verdict"), "reasons": vo.get("reasons")}
         return normalise({"fixture": os.path.basename(d), "synthetic": meta.get("synthetic"),
                           "broker": broker, "portfolio_source": source, "now": now, "portfolio": pf,
                           "risk_check": {"exit": rc_exit, "out": rc_out},
-                          "preview": {"exit": pv_exit, "out": pv_out}, "fill": fill})
+                          "preview": {"exit": pv_exit, "out": pv_out}, "fill": fill, "verify_fill": vf})
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
