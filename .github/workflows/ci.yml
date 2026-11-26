@@ -32,3 +32,20 @@ jobs:
         run: |
           python skills/trading-research/scripts/mcp_lock.py check-config --config skills/trading-research/assets/mcp-config.research.json --lock skills/trading-research/assets/mcp-lock.json
           python skills/trading-execution/scripts/mcp_lock.py check-config --config skills/trading-execution/assets/mcp-config.paper-execute.json --lock skills/trading-execution/assets/mcp-lock.json
+  repro:
+    # Replays the committed fixtures through the whole place-it path (portfolio -> order -> risk_check ->
+    # preview -> simulated fill) and diffs against expected.json. The synthetic/ fixtures are hand-written.
+    # The paper-broker/ fixture is a slot for REAL Alpaca paper responses (evals/record_alpaca.py); until
+    # they are committed it is skipped, and nothing here talks to a broker.
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: repro over committed fixtures
+        run: python skills/trading-execution/evals/repro.py --all
