@@ -11,9 +11,13 @@ Commands
   mandate.py record --order order.json --ledger l.jsonl [--pnl -12.5] [--fill-price 190.1]
   mandate.py status [--mandate m.json] [--ledger l.jsonl]
   mandate.py halt   --reason "..."        (writes the HALT file next to the mandate; any run stops)
-  mandate.py reconcile --broker fills.json [--ledger l.jsonl] [--tol 0.01]
+  mandate.py reconcile --broker fills.json --account account.json [--ledger l.jsonl] [--tol 0.01] [--gate-dir D]
              fills.json: the broker's own orders/fills for the period (e.g. Alpaca get_orders), list of
              {"client_order_id","symbol","side","filled_qty","filled_avg_price"}. Any break HALTs.
+             Writes <ledger>.reconcile.json, signed with the gate key (T5). check refuses every ENTRY
+             (NEEDS_YES) until a MATCHED reconcile of the current ledger, no older than
+             reconcile_max_age_min (default 60), with the account's equity exists; risk_check's equity for
+             the order must be within equity_tol_pct (default 2) of it, or the mandate HALTs.
 
 A mandate for a strategy whose pipeline.py verdict was PAPER_PROBE sets "probe": true: it must be
 paper, and each order is capped at probe_size_multiplier (default 0.25) of max_order.
@@ -31,7 +35,7 @@ Exits that reduce or close a position stay AUTO_OK when only a limit is spent (l
 trips HALT for entries); once the mandate is revoked or the HALT file exists, exits need a per-order
 yes too. Protective stops already resting at the broker stay in place either way.
 """
-import argparse, json, os, sys
+import argparse, hashlib, json, os, sys, time
 from datetime import datetime, date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +56,65 @@ def load_ledger(p):
     if not p or not os.path.exists(p):
         return []
     return [json.loads(l) for l in open(p) if l.strip()]
+
+
+def file_sha256(p):
+    return hashlib.sha256(open(p, "rb").read()).hexdigest() if p and os.path.exists(p) else hashlib.sha256(b"").hexdigest()
+
+
+def stamp_path(ledger):
+    return os.path.abspath(ledger) + ".reconcile.json"
+
+
+def account_equity(A):
+    """Broker account equity: Alpaca GET /v2/account {"equity"}, IBKR summary {"netliquidation": {"amount"}},
+    or a plain {"equity": n}."""
+    if isinstance(A, dict):
+        if isinstance(A.get("netliquidation"), dict):
+            return float(A["netliquidation"]["amount"])
+        if A.get("equity") is not None:
+            return float(A["equity"])
+    raise ValueError("account file has no equity (Alpaca equity or IBKR netliquidation.amount)")
+
+
+def reconcile_gate(a, M, rk_row, halt, need):
+    """T5: an entry needs a MATCHED reconcile, signed with the gate key, of this exact ledger, recent, with the
+    broker's equity; the equity risk_check sized from must match it."""
+    from gate import check_obj
+    p = stamp_path(a.ledger)
+    if not os.path.exists(p):
+        need.append("no reconcile on record: run mandate.py reconcile --broker fills.json --account account.json "
+                    "before any entry")
+        return
+    try:
+        S = json.load(open(p))
+    except ValueError:
+        halt.append("reconcile stamp unreadable: %s" % p)
+        return
+    if not check_obj(S, "mac", getattr(a, "gate_dir", None), "RS1"):
+        halt.append("reconcile stamp signature invalid: it was edited or made with another gate key")
+        return
+    if S.get("verdict") != "MATCHED":
+        halt.append("last reconcile found breaks: fix them and reconcile again")
+        return
+    if S.get("ledger_sha256") != file_sha256(a.ledger):
+        need.append("ledger changed since the last reconcile: reconcile again before the next entry")
+    age_min = (time.time() - float(S.get("at_wall", 0))) / 60
+    max_age = float(M.get("reconcile_max_age_min", 60))
+    if age_min > max_age:
+        need.append("last reconcile is %.0f min old (mandate allows %g): reconcile again" % (age_min, max_age))
+    be = S.get("equity")
+    if be is None:
+        need.append("equity not reconciled: run reconcile with --account (the broker account read)")
+        return
+    pe = (rk_row or {}).get("equity")
+    if pe is None:
+        need.append("the gate log has no equity for this nonce: run risk_check again")
+        return
+    tol = float(M.get("equity_tol_pct", 2.0))
+    if abs(float(pe) - float(be)) > abs(float(be)) * tol / 100:
+        halt.append("unreconciled equity: risk_check sized from %.2f but the broker reported %.2f at reconcile "
+                    "(tolerance %g%%)" % (float(pe), float(be), tol))
 
 
 def ledger_position(L, mandate_id, sym):
@@ -139,6 +202,9 @@ def check(a):
         ok, why, _t = verify(tok, o, M.get("mode", "paper"), getattr(a, "limits", None), getattr(a, "gate_dir", None),
                              False, a.now, consume=False)
         need += ["gate: " + w for w in why]
+        if not is_exit:
+            from gate import issued_row
+            reconcile_gate(a, M, issued_row(tok, getattr(a, "gate_dir", None)), halt, need)
     # scope applies to exits too (T3: the old is_exit skip let any held symbol auto-trade)
     sym = str(o.get("symbol", "")).upper()
     if [s_.upper() for s_ in M.get("symbols", [])] and sym not in [s_.upper() for s_ in M["symbols"]]:
@@ -246,8 +312,20 @@ def reconcile(a):
     if breaks:
         with open(halt_file(a.mandate), "w") as f:
             f.write("%s reconcile: %d breaks" % (datetime.now().isoformat(timespec="minutes"), len(breaks)))
+    equity = None
+    if getattr(a, "account", None):
+        equity = account_equity(json.load(open(a.account)))
+    from gate import gate_dir, sign_obj
+    S = dict(v=1, verdict="BREAKS" if breaks else "MATCHED", at_wall=round(time.time(), 3),
+             at=datetime.now().astimezone().isoformat(timespec="seconds"), ledger_sha256=file_sha256(a.ledger),
+             broker_sha256=file_sha256(a.broker), account_sha256=file_sha256(a.account) if getattr(a, "account", None) else None,
+             equity=equity, breaks=len(breaks))
+    S["mac"] = sign_obj(S, getattr(a, "gate_dir", None), "RS1")
+    with open(stamp_path(a.ledger), "w") as f:
+        json.dump(S, f, indent=1)
     print(json.dumps(dict(verdict="BREAKS" if breaks else "MATCHED", matched=len(set(mine) & set(theirs)),
-                          breaks=breaks), indent=2))
+                          breaks=breaks, equity=equity, stamp=stamp_path(a.ledger),
+                          gate_dir=gate_dir(getattr(a, "gate_dir", None))), indent=2))
     sys.exit(2 if breaks else 0)
 
 
@@ -278,6 +356,9 @@ if __name__ == "__main__":
             p.add_argument("--reverses", help="client_order_id of the row this one cancels out")
         if name == "reconcile":
             p.add_argument("--broker", required=True)
+            p.add_argument("--account", help="broker account read (Alpaca GET /v2/account or IBKR summary): its "
+                                             "equity is stamped and every entry's risk_check equity must match it")
+            p.add_argument("--gate-dir")
             p.add_argument("--tol", type=float, default=0.01, help="price tolerance as a fraction")
         if name == "halt":
             p.add_argument("--reason", required=True)
