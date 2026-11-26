@@ -16,7 +16,7 @@
  "max_adv_pct": 1,
  "paper": true,
  "allow_options": true,
- "allow_margin": false,
+ "allow_margin": true,
  "allow_short": true,
  "blocked": [],
  "timing": {
