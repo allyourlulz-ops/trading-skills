@@ -20,6 +20,9 @@ provisional findings in docs/AUDIT.md. Tests: `skills/trading-execution/evals/tr
 - T9: new `scripts/verify_fill.py` (trading-execution only) re-checks every broker fill against its nonce: MAC, gate-log membership, consumed by preview, not already verified, the checked fingerprint (order + limits), client_order_id, symbol, side, 0 < filled qty <= checked qty, a limit fill not through the limit (a market fill within `--market-tol-bps` of `est_price`), the broker's type and limit price, the asset class risk_check derived, and a fill time not before the check. Any mismatch, and any bad or missing input, is HALT: it writes `<gate_dir>/HALT` (and the mandate's HALT with `--mandate`), after which risk_check refuses every new entry (new HARD code `GATE_HALT`; exits stay allowed) and `mandate.py check` HALTs, exits included. Repro: each simulated fill now runs through verify_fill; expected.json gains `verify_fill` (MATCH, or null when nothing filled). A partial fill may be re-verified as it grows (never as it shrinks); a completed one only once. Tests `T9_*`.
 - P13 (limits integrity, mapped to the trust boundary): new `evals/limits_guard.py`, run by `run_tests.py`, fails when the two `risk-limits.json` copies differ anywhere except the intended keys (`_notes`, `allow_short`, `allow_options`, `allow_crypto`, `cost_ladder_bps`, `require_survives_cost_x`), or when the execution copy turns on paper-off, shorts, options, crypto or margin. Tests `P13_*`.
 
+### Tests
+- Invariant check (HARD stays HARD): every reason code Phase 1 adds (`ASSET_CLASS`, `NO_CLOCK`, `CLOCK_DRIFT`, `MARGIN_OFF` derived, `NO_CASH`, `INSTRUMENT`, `EXIT_UNVERIFIED`, `GATE_HALT`) is refused by `--override` with the exact ack on paper and still issues a FAIL nonce. Test `HARD_new_phase1_codes_cannot_be_overridden`.
+
 ## 2.1.1 (2026-11-25)
 
 Both skills (trading-research, trading-execution) move to 2.1.1.
