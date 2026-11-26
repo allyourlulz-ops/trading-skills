@@ -72,6 +72,12 @@ def check_config(cfg, lock):
                     why.append(f"{pkg} not pinned as {pkg}=={meta['version']}")
             loose = [x for x in args if re.match(r"^[A-Za-z0-9_.\-]+(\[.*\])?$", x) and x in (L.get("packages") or {})]
             why += [f"{x} has no version" for x in loose]
+        elif cmd == "npx" and L.get("registry") == "github":
+            want = "github:%s#%s" % (L.get("repo"), L.get("commit"))
+            if not re.fullmatch(r"[0-9a-f]{40}", str(L.get("commit", ""))):
+                why.append("lock needs the full 40-char commit sha")
+            elif want not in args:
+                why.append("must run %s (a branch or tag can move)" % want)
         elif cmd == "npx":
             for pkg, meta in (L.get("packages") or {}).items():
                 if f"{pkg}@{meta['version']}" not in args:
