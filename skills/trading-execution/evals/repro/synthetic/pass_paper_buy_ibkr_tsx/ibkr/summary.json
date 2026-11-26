@@ -50,5 +50,13 @@
  "accountready": {
   "value": "true",
   "isNull": false
+ },
+ "settledcash": {
+  "amount": 45000.0,
+  "currency": "CAD",
+  "isNull": false,
+  "timestamp": 1764084600000,
+  "value": null,
+  "severity": 0
  }
 }
