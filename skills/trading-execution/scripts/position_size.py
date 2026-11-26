@@ -19,6 +19,10 @@ instrument.json (optional; defaults come from limits.instrument_defaults[asset_c
   {"asset_class": "equity", "currency": "USD", "multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange" | "24x7",
    "gap_pct": 0.05, "cluster": "us_megacap_tech"}
   Fractional shares: lot_step 0.001 (or the broker's increment). Crypto: lot_step 0.000001, session 24x7.
+  Only the keys in INSTRUMENT_KEYS are accepted (T4). multiplier and session are fixed by the asset class
+  (1 and "exchange" for equity/etf, 1 and "24x7" for crypto, 100 for options) and may only be restated;
+  gap_pct may raise the class default, never lower it, and stays <= 1; lot_step and min_qty must be finite
+  and within [1e-9, 1e6]. Anything else refuses (exit 2).
   Options (long premium only): entry = premium per share, stop ignored, risk = premium x multiplier.
   Asset class: the instrument spec's asset_class, checked against the symbol's shape (OCC option symbol,
   BASE/QUOTE crypto pair, exchange ticker) and the order's label; any disagreement refuses. etf needs a
@@ -132,16 +136,70 @@ def floor_step(x: float, step: float) -> float:
     return float((Decimal(repr(x)) / s).to_integral_value(rounding=ROUND_FLOOR) * s)
 
 
+class InstrumentError(SizingError):
+    """An instrument spec (caller file or limits default) that tries to change what the asset class fixes."""
+
+
+# T4: the keys an instrument.json may carry. multiplier and session are fixed by the asset class: they may be
+# stated only with the class's own value. gap_pct may only be raised; lot_step and min_qty are range-checked.
+INSTRUMENT_KEYS = {"asset_class", "symbol", "name", "exchange", "conid", "source", "as_of", "currency", "lot_step",
+                   "min_qty", "gap_pct", "cluster", "multiplier", "session"}
+LIMIT_DEFAULT_KEYS = {"multiplier", "lot_step", "min_qty", "gap_pct", "session"}
+FIXED_KEYS = ("multiplier", "session")
+STEP_RANGE = (1e-9, 1e6)
+
+
+def _num(spec: Dict[str, Any], k: str, where: str) -> float:
+    try:
+        v = float(spec[k])
+    except (TypeError, ValueError, KeyError):
+        raise InstrumentError(f"{where} {k} must be a number")
+    if not math.isfinite(v):
+        raise InstrumentError(f"{where} {k} must be finite (got {spec[k]!r})")
+    return v
+
+
 def instrument_spec(L: Dict[str, Any], asset_class: str, given: Optional[Dict[str, Any]], base: str) -> Dict[str, Any]:
     spec = dict(BUILTIN_DEFAULTS.get(asset_class) or {})
     if not spec:
         raise SizingError(f"unknown asset_class {asset_class!r}")
-    spec.update((L.get("instrument_defaults") or {}).get(asset_class, {}))
-    spec.update(given or {})
+    lim_def = dict((L.get("instrument_defaults") or {}).get(asset_class, {}))
+    bad = sorted(k for k in set(lim_def) - LIMIT_DEFAULT_KEYS if not str(k).startswith("_"))
+    if bad:
+        raise InstrumentError(f"limits instrument_defaults.{asset_class} keys not allowed: {', '.join(bad)}")
+    if "session" in lim_def and lim_def["session"] != spec["session"]:
+        raise InstrumentError(f"limits instrument_defaults.{asset_class}.session cannot change the "
+                              f"{asset_class} session ({spec['session']})")
+    spec.update({k: v for k, v in lim_def.items() if not str(k).startswith("_")})
+    gap_floor = _num(spec, "gap_pct", "limits instrument_defaults")
+    if not 0 <= gap_floor <= 1:
+        raise InstrumentError(f"limits instrument_defaults.{asset_class}.gap_pct must be in [0, 1]")
+    g = {k: v for k, v in (given or {}).items() if not str(k).startswith("_")}
+    bad = sorted(set(g) - INSTRUMENT_KEYS)
+    if bad:
+        raise InstrumentError(f"instrument keys not allowed: {', '.join(bad)} (allowed: {', '.join(sorted(INSTRUMENT_KEYS))})")
+    for k in FIXED_KEYS:
+        if k in g:
+            same = g[k] == spec[k] if k == "session" else (
+                isinstance(g[k], (int, float)) and not isinstance(g[k], bool) and float(g[k]) == float(spec[k]))
+            if not same:
+                raise InstrumentError(f"instrument {k} {g[k]!r} cannot override the {asset_class} value {spec[k]!r}")
+    spec.update(g)
     spec.setdefault("currency", base)
-    for k in ("multiplier", "lot_step", "min_qty"):
-        if float(spec[k]) <= 0:
-            raise SizingError(f"instrument {k} must be > 0")
+    m = _num(spec, "multiplier", "instrument")
+    if (asset_class != "option" and m != 1) or not 0 < m <= 1000:
+        raise InstrumentError(f"instrument multiplier {m:g} is out of range for {asset_class} "
+                              f"({'1' if asset_class != 'option' else '(0, 1000]'})")
+    gap = _num(spec, "gap_pct", "instrument")
+    if not gap_floor <= gap <= 1:
+        raise InstrumentError(f"instrument gap_pct {gap:g} must be in [{gap_floor:g}, 1]: it may raise the "
+                              f"{asset_class} default, never lower it")
+    for k in ("lot_step", "min_qty"):
+        v = _num(spec, k, "instrument")
+        if not STEP_RANGE[0] <= v <= STEP_RANGE[1]:
+            raise InstrumentError(f"instrument {k} {v:g} must be in [{STEP_RANGE[0]:g}, {STEP_RANGE[1]:g}]")
+    if not (isinstance(spec["currency"], str) and len(spec["currency"]) == 3 and spec["currency"].isalpha()):
+        raise InstrumentError("instrument currency must be a 3-letter ISO code")
     return spec
 
 
