@@ -1,0 +1,149 @@
+{
+ "broker": null,
+ "fill": {
+  "client_order_id": "repro-soft-fail-override",
+  "filled_at": "2026-11-25T10:30:00-05:00",
+  "filled_avg_price": 190.0,
+  "filled_qty": 10,
+  "qty": 10,
+  "side": "buy",
+  "simulated": true,
+  "status": "filled",
+  "symbol": "AAPL",
+  "time_in_force": "day",
+  "type": "limit"
+ },
+ "fixture": "soft_fail_override",
+ "now": "2026-11-25T10:30:00-05:00",
+ "portfolio": {
+  "as_of": "2026-11-25T10:30:00-05:00",
+  "base_currency": "USD",
+  "buying_power": 20000,
+  "clock": {
+   "as_of": "2026-11-25T10:30:00-05:00",
+   "is_open": true,
+   "source": "alpaca:get_clock"
+  },
+  "equity": 25000,
+  "paper": true,
+  "positions": [],
+  "today": {
+   "orders": 0,
+   "planned_loss": 0,
+   "realized_pnl": 0,
+   "trades": 0
+  }
+ },
+ "portfolio_source": "portfolio.json",
+ "preview": {
+  "exit": 0,
+  "out": {
+   "endpoint": "https://paper-api.alpaca.markets",
+   "gate": "OPEN",
+   "mode": "paper",
+   "nonce": "RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac>",
+   "override": true,
+   "preview": [
+    "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
+    "RISK GATE OVERRIDDEN by the user (logged in overrides.jsonl)",
+    "Order: BUY 10 AAPL | limit @ 190.0 | stop 185.0 | target 192.0 | day",
+    "Estimated notional 1900.0 USD; risk to stop 51.9 USD; gap loss 145.0 USD; binding: position",
+    "Purpose: open position",
+    "Stop: sent as a bracket leg",
+    "client_order_id: repro-soft-fail-override",
+    "Nonce: RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
+    "Gate: OPEN. Send only after the user's explicit yes for this exact order."
+   ],
+   "preview_first_line": "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
+   "reasons": []
+  }
+ },
+ "risk_check": {
+  "exit": 0,
+  "out": {
+   "fingerprint": "31cbb1bb52508079",
+   "limits_used": {
+    "allow_crypto": false,
+    "allow_margin": false,
+    "allow_options": false,
+    "allow_short": false,
+    "base_currency": "USD",
+    "cash_buffer_pct": 10,
+    "cluster_corr": 0.7,
+    "gap_loss_multiple": 2.0,
+    "max_cluster_risk_pct": 3.0,
+    "max_daily_loss": 2000,
+    "max_loss_per_trade": 1000,
+    "max_order": 20000,
+    "max_orders_per_day": 10,
+    "max_portfolio_heat_pct": 6.0,
+    "max_position_pct": 40,
+    "max_risk_per_trade_pct": 2.0,
+    "max_trades_per_day": 3,
+    "min_order": 5,
+    "min_reward_risk": 1.5,
+    "no_entries_after": "15:30",
+    "no_entries_before": "09:45",
+    "paper": true,
+    "stop_slippage_bps": 10,
+    "timezone": "America/New_York"
+   },
+   "mode": "paper",
+   "next": "Override logged. Preview with --allow-override; the preview prints OVERRIDE.",
+   "nonce": "RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac>",
+   "override": {
+    "accepted": true,
+    "overridden": [
+     "REWARD_RISK: reward/risk 0.4 < 1.5"
+    ],
+    "reason": "paper test of exit logic at a tight target",
+    "refused_because": []
+   },
+   "reasons": [
+    "REWARD_RISK: reward/risk 0.4 < 1.5"
+   ],
+   "sizing": {
+    "asset_class": "equity",
+    "base_currency": "USD",
+    "binding_constraint": "position",
+    "breakeven_win_rate": 0.7414,
+    "cluster_members": [],
+    "constraints": {
+     "buying_power": 94.0,
+     "cluster": 144.0,
+     "daily_loss": 385.0,
+     "gap": 68.0,
+     "order": 105.0,
+     "portfolio_heat": 289.0,
+     "position": 52.0,
+     "risk_per_trade": 96.0
+    },
+    "dollar_risk": 269.88,
+    "fx": 1.0,
+    "fx_source": null,
+    "gap_loss": 754.0,
+    "heat_after_pct": 1.08,
+    "instrument_currency": "USD",
+    "lot_step": 1.0,
+    "multiplier": 1.0,
+    "notional": 9880.0,
+    "notional_per_unit": 190.0,
+    "ok": true,
+    "open_risk_before": 0,
+    "qty": 52.0,
+    "reasons": [],
+    "reward_risk": 0.4,
+    "risk_budget": 500.0,
+    "risk_per_unit": 5.19,
+    "session": "exchange",
+    "side": "long",
+    "symbol": "AAPL"
+   },
+   "verdict": "pass",
+   "warnings": [
+    "no --context: earnings and market-regime gates skipped; fetch them via the data MCP server"
+   ]
+  }
+ },
+ "synthetic": true
+}
