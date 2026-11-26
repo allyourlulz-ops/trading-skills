@@ -1,0 +1,9 @@
+{
+ "_note": "template lock for the repro slot: preview.py reads a non-Alpaca server's paper/live mode from this field",
+ "servers": {
+  "ibkr": {
+   "mode": "paper",
+   "url": "https://localhost:5000/v1/api"
+  }
+ }
+}
