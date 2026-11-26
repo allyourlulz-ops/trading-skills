@@ -1,0 +1,9 @@
+{
+ "synthetic": true,
+ "broker": "alpaca_paper",
+ "description": "SYNTHETIC. The PASS paper buy (AAPL, 52 shares) through the alpaca_paper broker layer. The alpaca/ files are hand-written in the shape of Alpaca Trading API v2 GET /v2/account, /v2/clock, /v2/positions; they are not recorded from any account.",
+ "now": "2026-11-25T10:30:00-05:00",
+ "mode": "paper",
+ "limits": "limits.json",
+ "contract": "contract.json"
+}
