@@ -16,10 +16,13 @@ portfolio.json (from the broker MCP server; base currency is the account's):
    "correlations": {"AAPL|MSFT": 0.78},          # optional; |rho| >= limits cluster_corr joins a cluster
    "today": {"trades": 1, "orders": 2, "realized_pnl": -40, "planned_loss": 25}}
 instrument.json (optional; defaults come from limits.instrument_defaults[asset_class]):
-  {"currency": "USD", "multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange" | "24x7",
+  {"asset_class": "equity", "currency": "USD", "multiplier": 1, "lot_step": 1, "min_qty": 1, "session": "exchange" | "24x7",
    "gap_pct": 0.05, "cluster": "us_megacap_tech"}
   Fractional shares: lot_step 0.001 (or the broker's increment). Crypto: lot_step 0.000001, session 24x7.
   Options (long premium only): entry = premium per share, stop ignored, risk = premium x multiplier.
+  Asset class: the instrument spec's asset_class, checked against the symbol's shape (OCC option symbol,
+  BASE/QUOTE crypto pair, exchange ticker) and the order's label; any disagreement refuses. etf needs a
+  spec saying etf. An exchange ticker with no label is equity.
 
 Constraints, each a maximum quantity; the smallest binds and is named:
   risk_per_trade   R / r                         R = min(limit %, limit amount, requested) x size_multiplier
@@ -38,7 +41,7 @@ Exit 0 when qty >= min_qty, 1 when sizing refuses, 2 on bad input.
 """
 from __future__ import annotations
 
-import argparse, json, math, os, sys
+import argparse, json, math, os, re, sys
 from decimal import Decimal, ROUND_FLOOR
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -54,6 +57,51 @@ BUILTIN_DEFAULTS: Dict[str, Dict[str, Any]] = {
 
 class SizingError(ValueError):
     """Bad or missing input: sizing refuses rather than guessing."""
+
+
+# OCC option symbol: root (1-6, adjusted roots may carry a digit) + yymmdd + C|P + strike x 1000 (8 digits)
+OCC_SYMBOL = re.compile(r"^[A-Z][A-Z0-9.]{0,5}\d{6}[CP]\d{8}$")
+
+
+def symbol_class(symbol: str) -> Optional[str]:
+    """What the symbol's own shape proves: option (OCC), crypto (BASE/QUOTE), or None (an exchange ticker)."""
+    s = str(symbol).upper().replace(" ", "")
+    if OCC_SYMBOL.match(s):
+        return "option"
+    if "/" in s:
+        return "crypto"
+    return None
+
+
+def resolve_asset_class(symbol: str, declared: Optional[str], instrument: Optional[Dict[str, Any]]) -> Tuple[str, List[str]]:
+    """Asset class from the instrument spec and the symbol, never from the order's label alone (T1).
+    Returns (asset_class, problems); any problem is a HARD fail in risk_check."""
+    spec_ac = (instrument or {}).get("asset_class")
+    shape = symbol_class(symbol)
+    problems: List[str] = []
+    for name, v in (("order", declared), ("instrument spec", spec_ac)):
+        if v is not None and v not in BUILTIN_DEFAULTS:
+            problems.append(f"{name} asset_class {v!r} unknown; use one of {', '.join(sorted(BUILTIN_DEFAULTS))}")
+    if declared is not None and spec_ac is not None and declared != spec_ac:
+        problems.append(f"order says asset_class {declared} but the instrument spec says {spec_ac}")
+    ac = str(spec_ac or declared or shape or "equity")
+    if shape == "option" and ac != "option":
+        problems.append(f"{symbol} is an OCC option symbol but is labelled {ac}")
+    elif shape == "crypto" and ac != "crypto":
+        problems.append(f"{symbol} is a BASE/QUOTE crypto pair but is labelled {ac}")
+    elif shape is None and ac in ("option", "crypto"):
+        problems.append(f"{ac} needs {'an OCC option' if ac == 'option' else 'a BASE/QUOTE crypto'} symbol; "
+                        f"{symbol} is an exchange ticker")
+    if ac == "etf" and spec_ac != "etf":
+        problems.append("etf lowers the default gap: it needs an instrument spec with asset_class etf")
+    m = (instrument or {}).get("multiplier")
+    try:
+        m100 = m is not None and float(m) == 100
+    except (TypeError, ValueError):
+        m100 = False
+    if m100 and ac != "option":
+        problems.append(f"{ac}-labelled order with multiplier 100: that is an option contract, label and size it as one")
+    return ac, problems
 
 
 def limit_money(L: Dict[str, Any], key: str, base: str) -> Optional[float]:
@@ -238,13 +286,18 @@ def main() -> None:
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--risk-pct", type=float); g.add_argument("--risk-amount", type=float)
     ap.add_argument("--portfolio", required=True); ap.add_argument("--instrument")
-    ap.add_argument("--asset-class", default="equity", choices=sorted(BUILTIN_DEFAULTS))
+    ap.add_argument("--asset-class", choices=sorted(BUILTIN_DEFAULTS),
+                    help="optional: derived from --instrument's asset_class and the symbol; a disagreement refuses")
     ap.add_argument("--limits", default=DEFAULT_LIMITS)
     ap.add_argument("--size-multiplier", type=float, default=1.0)
     a = ap.parse_args()
     try:
+        inst = json.load(open(a.instrument)) if a.instrument else None
+        ac, problems = resolve_asset_class(a.symbol, a.asset_class, inst)
+        if problems:
+            raise SizingError("; ".join(problems))
         res = size(a.symbol, a.side, a.entry, a.stop, json.load(open(a.portfolio)), json.load(open(a.limits)),
-                   a.asset_class, json.load(open(a.instrument)) if a.instrument else None,
+                   ac, inst,
                    a.risk_pct, a.risk_amount, a.target, a.size_multiplier)
     except (SizingError, KeyError, ValueError, OSError) as e:
         print(json.dumps({"ok": False, "error": str(e)}, indent=2)); sys.exit(2)
