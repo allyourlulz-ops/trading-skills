@@ -699,6 +699,140 @@ def T8_control_signed_exit_of_a_mandate_position_is_auto_ok(e):
     return out.get("verdict") == "AUTO_OK"
 
 
+# ---------------------------------------------------------------- T9 post-fill re-check against the nonce
+def placed(e, order=None, preview=True):
+    """risk_check + preview (consumes the nonce). Returns (nonce, order_path, limits_path)."""
+    o = ORDER if order is None else order
+    lp = e.write(LIMITS, "limits_t9.json"); op = e.write(o, "order_t9.json")
+    ex, out = e.run("risk_check.py", "--order", op, "--portfolio", e.write(PORTFOLIO), "--mode", "paper", "--limits", lp,
+                    "--gate-dir", e.gate, "--now", NOW, "--contract", e.write(quote_contract(o["symbol"])))
+    if preview:
+        e.run("preview.py", "--order", op, "--risk", e.write(out, "risk_t9.json"), "--config",
+              os.path.join(F, "cfg_paper.json"), "--limits", lp, "--gate-dir", e.gate, "--now", NOW, "--json")
+    return out.get("nonce"), op, lp
+
+
+def fill_of(o, **kw):
+    """An Alpaca order object after the fill (GET /v2/orders/{id} shape)."""
+    f = {"client_order_id": o["client_order_id"], "symbol": o["symbol"], "side": o["side"], "qty": str(o["qty"]),
+         "filled_qty": str(o["qty"]), "filled_avg_price": str(o["limit_price"]), "status": "filled",
+         "type": o.get("type", "limit"), "limit_price": str(o["limit_price"]), "asset_class": "us_equity",
+         "filled_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + 5)) + ".123456789Z"}
+    f.update(kw)
+    return {k: v for k, v in f.items() if v is not None}
+
+
+def verify_fill(e, fill, nonce=None, op=None, lp=None, raw=None):
+    fp = os.path.join(e.tmp, "fill.json")
+    if fill is not None or raw is not None:
+        with open(fp, "w") as f:
+            f.write(raw if raw is not None else json.dumps(fill))
+    return e.run("verify_fill.py", "--nonce", nonce or "", "--order", op, "--fill", fp, "--limits", lp,
+                 "--gate-dir", e.gate)
+
+
+def halted(res, e, word=None):
+    ex, out = res
+    return ex == 2 and out.get("verdict") == "HALT" and os.path.exists(os.path.join(e.gate, "HALT")) and \
+        (word is None or any(word in r for r in out.get("reasons", [])))
+
+
+@test
+def T9_control_matching_fill_is_a_match(e):
+    n, op, lp = placed(e)
+    ex, out = verify_fill(e, fill_of(ORDER), n, op, lp)
+    return ex == 0 and out.get("verdict") == "MATCH" and not os.path.exists(os.path.join(e.gate, "HALT"))
+
+
+@test
+def T9_control_partial_fill_is_a_match(e):
+    n, op, lp = placed(e)
+    ex, out = verify_fill(e, fill_of(ORDER, filled_qty="20", status="partially_filled"), n, op, lp)
+    return ex == 0 and out.get("verdict") == "MATCH" and out.get("partial") is True
+
+
+@test
+def T9_fill_qty_over_the_order_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, filled_qty="60"), n, op, lp), e, "qty")
+
+
+@test
+def T9_fill_of_another_symbol_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, symbol="TSLA"), n, op, lp), e, "symbol")
+
+
+@test
+def T9_fill_on_the_other_side_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, side="sell"), n, op, lp), e, "side")
+
+
+@test
+def T9_fill_through_the_limit_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, filled_avg_price="191.50"), n, op, lp), e, "price")
+
+
+@test
+def T9_fill_of_another_client_order_id_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, client_order_id="someone-else"), n, op, lp), e, "client_order_id")
+
+
+@test
+def T9_fill_of_another_asset_class_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, fill_of(ORDER, asset_class="us_option"), n, op, lp), e, "asset class")
+
+
+@test
+def T9_fill_without_a_previewed_nonce_halts(e):
+    n, op, lp = placed(e, preview=False)
+    return halted(verify_fill(e, fill_of(ORDER), n, op, lp), e, "preview")
+
+
+@test
+def T9_second_fill_for_one_nonce_halts(e):
+    n, op, lp = placed(e)
+    first = verify_fill(e, fill_of(ORDER), n, op, lp)
+    return first[0] == 0 and halted(verify_fill(e, fill_of(ORDER), n, op, lp), e, "already")
+
+
+@test
+def T9_order_file_edited_after_the_check_halts(e):
+    n, op, lp = placed(e)
+    json.dump(dict(ORDER, qty=60), open(op, "w"))
+    return halted(verify_fill(e, fill_of(dict(ORDER, qty=60)), n, op, lp), e, "order")
+
+
+@test
+def T9_missing_fill_file_halts(e):
+    n, op, lp = placed(e)
+    return halted(verify_fill(e, None, n, op, lp), e)
+
+
+@test
+def T9_gate_halt_blocks_new_entries_not_exits(e):
+    n, op, lp = placed(e)
+    verify_fill(e, fill_of(ORDER, filled_qty="60"), n, op, lp)
+    entry = e.rc(order=dict(ORDER, client_order_id="next-1"))
+    ex_ = e.rc(order=EXIT, pf=pf_with(positions=HELD_AAPL), contract=None)
+    return failed(entry, "GATE_HALT") and passed(ex_)
+
+
+@test
+def T9_gate_halt_stops_the_mandate_exits_included(e):
+    os.makedirs(e.gate, exist_ok=True)
+    open(os.path.join(e.gate, "HALT"), "w").write("verify_fill: test break")
+    led = [{"ts": NOW, "mandate_id": MANDATE["id"], "client_order_id": "m-aapl-0", "symbol": "AAPL", "side": "buy",
+            "qty": 10, "price": 190, "notional": 1900, "is_exit": False}]
+    o = dict(EXIT, client_order_id="m-aapl-x", strategy="ema9-pullback-v2")
+    mx, out, risk = mandate_check(e, o, ledger=led, rc_kw={"pf": pf_with(positions=HELD_AAPL), "contract": None})
+    return risk.get("verdict") == "pass" and out.get("verdict") == "HALT"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
