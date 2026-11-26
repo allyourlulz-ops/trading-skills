@@ -1,0 +1,18 @@
+{
+ "synthetic": true,
+ "broker": "ibkr_paper",
+ "description": "SYNTHETIC. A paper buy of RY (Royal Bank of Canada, TSX) in a CAD-based IBKR paper account, through the ibkr_paper broker layer. The ibkr/ files are hand-written in the shape of the IBKR Client Portal Web API (GET /portfolio/accounts, /portfolio/{accountId}/summary, /portfolio/{accountId}/positions/0); they are not recorded from any account. The clock is supplied here because that API has no single clock call.",
+ "now": "2026-11-25T10:30:00-05:00",
+ "mode": "paper",
+ "limits": "limits.json",
+ "contract": "contract.json",
+ "config": "mcp-config.json",
+ "lock": "mcp-lock.json",
+ "server": "ibkr",
+ "clock": {
+  "is_open": true,
+  "next_close": "2026-11-25T16:00:00-05:00",
+  "source": "synthetic: TSX regular session 09:30-16:00 ET",
+  "as_of": "2026-11-25T10:30:00-05:00"
+ }
+}
