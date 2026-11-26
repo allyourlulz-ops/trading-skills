@@ -304,8 +304,15 @@ def T3_control_verified_exit_passes(e):
 MANDATE = jl(os.path.join(SKILL, "assets", "mandate.example.json"))
 
 
+MANDATE_ACK = "I sign this mandate and accept losses inside its limits"
+
+
+def sign_mandate(e, mp, ack=MANDATE_ACK):
+    return e.run("mandate.py", "sign", "--mandate", mp, "--ack", ack, "--gate-dir", e.gate)
+
+
 def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, now=NOW, extra=(), reconcile=None,
-                  after_reconcile=None):
+                  after_reconcile=None, sign=True, after_sign=None):
     """risk_check this order, optionally mandate.py reconcile (reconcile = {"fills": [...], "account": {...}}),
     then mandate.py check it. Returns (exit, out, risk_out)."""
     lim = LIMITS if limits is None else limits
@@ -314,6 +321,10 @@ def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, no
     mdir = os.path.join(e.tmp, "mandate"); os.makedirs(mdir, exist_ok=True)
     mp = os.path.join(mdir, "mandate.json")
     json.dump(MANDATE if mandate is None else mandate, open(mp, "w"))
+    if sign:
+        e.last_sign = sign_mandate(e, mp)
+    if after_sign:
+        after_sign(mp)
     lp = os.path.join(mdir, "ledger.jsonl")
     with open(lp, "w") as f:
         for r in ledger:
@@ -581,6 +592,111 @@ def T7_gate_where_prints_the_resolved_dir(e):
     vx, v = e.run("gate.py", "where", "--gate-dir", e.gate)
     bx, b = e.run("gate.py", "where", "--gate-dir", os.path.join(SKILL, ".t7-where"))
     return vx == 0 and v.get("gate_dir") == os.path.realpath(e.gate) and bx != 0 and not os.path.exists(os.path.join(SKILL, ".t7-where"))
+
+
+# ---------------------------------------------------------------- T8 every mandate field, every call; signed
+TSLA_ENTRY = dict(ENTRY, symbol="TSLA", qty=2, limit_price=350.0, stop_price=340.0, target_price=380.0, client_order_id="m-tsla-1")
+
+
+def edit_mandate(**kw):
+    def f(mp):
+        m = json.load(open(mp)); m.update(kw); json.dump(m, open(mp, "w"))
+    return f
+
+
+@test
+def T8_mandate_edited_after_signing_halts(e):
+    mx, out, risk = mandate_check(e, TSLA_ENTRY, rc_kw={"contract": quote_contract("TSLA")}, reconcile=RECONCILED,
+                                  after_sign=edit_mandate(symbols=MANDATE["symbols"] + ["TSLA"]))
+    return risk.get("verdict") == "pass" and out.get("verdict") == "HALT" and \
+        any("signature" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_unsigned_mandate_needs_yes(e):
+    mx, out, risk = mandate_check(e, ENTRY, reconcile=RECONCILED, sign=False)
+    return out.get("verdict") == "NEEDS_YES" and any("not signed" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_sign_needs_the_exact_ack(e):
+    mp = e.write(MANDATE, "m_ack.json")
+    ex, out = sign_mandate(e, mp, ack="sure, sign it")
+    return ex != 0 and "signature" not in json.load(open(mp))
+
+
+@test
+def T8_unknown_mandate_field_halts(e):
+    mx, out, risk = mandate_check(e, ENTRY, mandate=dict(MANDATE, max_ordr=10 ** 6), reconcile=RECONCILED, sign=False)
+    return out.get("verdict") == "HALT" and any("max_ordr" in r for r in out.get("reasons", []))
+
+
+OPT_ORDER = {"symbol": OPT, "side": "buy", "qty": 1, "type": "limit", "limit_price": 2.5, "time_in_force": "day",
+             "client_order_id": "m-opt-1", "strategy": "ema9-pullback-v2", "paper": True, "risk_pct": 1}
+OPT_MANDATE = dict(MANDATE, symbols=MANDATE["symbols"] + [OPT], require_stop=False)
+
+
+@test
+def T8_asset_class_comes_from_the_gate_not_the_order_label(e):
+    mx, out, risk = mandate_check(e, OPT_ORDER, mandate=OPT_MANDATE, limits=LIMITS_OPEN, reconcile=RECONCILED,
+                                  rc_kw={"contract": jl(os.path.join(F, "contract_opt.json"))})
+    return risk.get("verdict") == "pass" and out.get("verdict") == "NEEDS_YES" and \
+        any("asset class option" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_order_notional_includes_the_multiplier(e):
+    m = dict(OPT_MANDATE, asset_classes=["equity", "option"], max_order=100)
+    mx, out, risk = mandate_check(e, OPT_ORDER, mandate=m, limits=LIMITS_OPEN, reconcile=RECONCILED,
+                                  rc_kw={"contract": jl(os.path.join(F, "contract_opt.json"))})
+    return risk.get("verdict") == "pass" and out.get("verdict") == "NEEDS_YES" and \
+        any("over the mandate" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_mandate_window_runs_on_the_gate_clock_not_now(e):
+    m = dict(MANDATE, granted_on="2026-11-26", expires_on="2026-12-20")
+    mx, out, risk = mandate_check(e, ENTRY, mandate=m, reconcile=RECONCILED, now="2026-11-27T10:00:00-05:00")
+    return risk.get("verdict") == "pass" and out.get("verdict") != "AUTO_OK" and \
+        any("not yet in force" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_probe_verdict_without_the_probe_flag_halts(e):
+    mx, out, risk = mandate_check(e, ENTRY, mandate=dict(MANDATE, pipeline_verdict="PAPER_PROBE", probe=False),
+                                  reconcile=RECONCILED, sign=False)
+    return out.get("verdict") == "HALT" and any("PAPER_PROBE" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_mandate_caps_above_the_risk_limits_halt(e):
+    mx, out, risk = mandate_check(e, ENTRY, mandate=dict(MANDATE, max_order=10 ** 6), reconcile=RECONCILED, sign=False)
+    return out.get("verdict") == "HALT" and any("max_order" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_mandate_short_without_limits_short_halts(e):
+    mx, out, risk = mandate_check(e, ENTRY, mandate=dict(MANDATE, allow_short=True), reconcile=RECONCILED, sign=False)
+    return out.get("verdict") == "HALT" and any("allow_short" in r for r in out.get("reasons", []))
+
+
+@test
+def T8_exit_under_an_edited_mandate_is_not_auto(e):
+    led = [{"ts": NOW, "mandate_id": MANDATE["id"], "client_order_id": "m-aapl-0", "symbol": "AAPL", "side": "buy",
+            "qty": 10, "price": 190, "notional": 1900, "is_exit": False}]
+    o = dict(EXIT, client_order_id="m-aapl-x", strategy="ema9-pullback-v2")
+    mx, out, risk = mandate_check(e, o, ledger=led, rc_kw={"pf": pf_with(positions=HELD_AAPL), "contract": None},
+                                  after_sign=edit_mandate(max_daily_loss=70))
+    return risk.get("verdict") == "pass" and out.get("verdict") == "HALT"
+
+
+@test
+def T8_control_signed_exit_of_a_mandate_position_is_auto_ok(e):
+    led = [{"ts": NOW, "mandate_id": MANDATE["id"], "client_order_id": "m-aapl-0", "symbol": "AAPL", "side": "buy",
+            "qty": 10, "price": 190, "notional": 1900, "is_exit": False}]
+    o = dict(EXIT, client_order_id="m-aapl-x", strategy="ema9-pullback-v2")
+    mx, out, risk = mandate_check(e, o, ledger=led, rc_kw={"pf": pf_with(positions=HELD_AAPL), "contract": None})
+    return out.get("verdict") == "AUTO_OK"
 
 
 def main():
