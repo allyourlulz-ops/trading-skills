@@ -4,10 +4,16 @@ user signed once. Stdlib only. Replaces gate 2 (the typed yes) for orders it app
 (risk_check PASS) still applies to every order, and the mandate's own limits are tighter still.
 
 Commands
+  mandate.py sign   --mandate m.json --ack "I sign this mandate and accept losses inside its limits" [--gate-dir D]
+             [--limits L]   The user runs this once: validates every field against the risk limits and adds an
+             HMAC signature (gate key). check HALTs on any later edit and says NEEDS_YES while unsigned (T8).
   mandate.py check  --order order.json --risk risk_result.json [--token T] [--mandate m.json] [--ledger l.jsonl]
                     [--gate-dir D] [--limits L] [--now ISO]
              The gate token (risk_result.json's nonce, or --token) must verify for this order and the
              mandate's mode; OVERRIDE tokens never pass here. AUTO_OK still goes through preview.py.
+             Every field is re-validated on every call (T8); the window and the day run on the time
+             risk_check recorded for the nonce in the gate log (--now must agree within the clock
+             tolerance); asset class and notional (with multiplier and fx) come from the gate log too.
   mandate.py record --order order.json --ledger l.jsonl [--pnl -12.5] [--fill-price 190.1]
   mandate.py status [--mandate m.json] [--ledger l.jsonl]
   mandate.py halt   --reason "..."        (writes the HALT file next to the mandate; any run stops)
@@ -35,13 +41,26 @@ Exits that reduce or close a position stay AUTO_OK when only a limit is spent (l
 trips HALT for entries); once the mandate is revoked or the HALT file exists, exits need a per-order
 yes too. Protective stops already resting at the broker stay in place either way.
 """
-import argparse, hashlib, json, os, sys, time
+import argparse, hashlib, json, math, os, re, sys, time
 from datetime import datetime, date
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:  # py<3.9
+    ZoneInfo = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_M = os.path.join(HERE, "..", "assets", "mandate.json")
 LIVE_ACK = "I accept losses from orders I do not approve one by one"
+MANDATE_ACK = "I sign this mandate and accept losses inside its limits"
 MAX_DAYS = 30
+ASSET_CLASSES = {"equity", "etf", "crypto", "option"}
+MANDATE_KEYS = {
+    "id", "granted_on", "expires_on", "mode", "live_ack", "strategies", "pipeline_verdict", "probe",
+    "probe_size_multiplier", "symbols", "asset_classes", "allow_short", "require_stop", "base_currency", "max_order",
+    "max_daily_notional", "max_orders_per_day", "max_open_positions", "max_daily_loss", "max_total_loss",
+    "max_consecutive_losses", "notify", "revoked", "require_broker_mode_match", "reconcile_max_age_min",
+    "equity_tol_pct", "timezone", "signed_at", "signature",
+    "max_order_usd", "max_daily_notional_usd", "max_daily_loss_usd", "max_total_loss_usd"}  # *_usd: v1 mandates
 
 
 
@@ -51,6 +70,91 @@ def lim(M, key):
     if v is None:
         v = M.get(key + "_usd")
     return v or 0
+
+def _parse_ts(ts):
+    return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", str(ts).replace("Z", "+00:00")))
+
+
+def _tz(M, Lm):
+    name = M.get("timezone") or (Lm or {}).get("timezone") or "America/New_York"
+    if ZoneInfo is None:
+        raise ValueError("zoneinfo unavailable: the mandate window needs a timezone")
+    return ZoneInfo(name)
+
+
+def validate_mandate(M, Lm):
+    """T8: every field, every call. Unknown or malformed fields, caps looser than the risk limits, and scope the
+    limits do not allow make the mandate invalid (HALT). Lm is the risk-limits dict."""
+    bad = []
+    unk = sorted(k for k in M if k not in MANDATE_KEYS and not str(k).startswith("_"))
+    if unk:
+        bad.append("unknown field(s): " + ", ".join(unk))
+    if not isinstance(M.get("id"), str) or not M.get("id"):
+        bad.append("id must be a non-empty string")
+    if M.get("mode", "paper") not in ("paper", "live"):
+        bad.append("mode must be paper or live")
+    st = M.get("strategies")
+    if not isinstance(st, list) or not st or not all(isinstance(x, str) and x for x in st):
+        bad.append("strategies must be a non-empty list of names")
+    sy = M.get("symbols", [])
+    if not isinstance(sy, list) or not all(isinstance(x, str) and x for x in sy):
+        bad.append("symbols must be a list of tickers")
+    ac = M.get("asset_classes", ["equity"])
+    if not isinstance(ac, list) or not ac or not set(ac) <= ASSET_CLASSES:
+        bad.append("asset_classes must be a non-empty subset of " + ", ".join(sorted(ASSET_CLASSES)))
+        ac = []
+    pv = M.get("pipeline_verdict")
+    if pv not in ("READY_FOR_PAPER", "PAPER_PROBE"):
+        bad.append("pipeline_verdict must be READY_FOR_PAPER or PAPER_PROBE (got %r)" % (pv,))
+    if pv == "PAPER_PROBE" and M.get("probe") is not True:
+        bad.append("pipeline_verdict PAPER_PROBE needs probe: true (paper only, reduced size)")
+    for k in ("probe", "allow_short", "require_stop", "revoked", "require_broker_mode_match"):
+        if k in M and not isinstance(M[k], bool):
+            bad.append("%s must be true or false" % k)
+
+    def num(k, lo, hi, required=False, integer=False, legacy=False):
+        v = M.get(k)
+        if v is None and legacy:
+            v = M.get(k + "_usd")
+        if v is None:
+            if required:
+                bad.append("%s is required" % k)
+            return None
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) \
+                or (integer and float(v) != int(v)) or not lo < float(v) <= hi:
+            bad.append("%s must be %s in (%g, %g]" % (k, "an integer" if integer else "a number", lo, hi))
+            return None
+        return float(v)
+    mo = num("max_order", 0, 1e12, True, legacy=True)
+    num("max_daily_notional", 0, 1e12, True, legacy=True)
+    mopd = num("max_orders_per_day", 0, 1000, True, integer=True)
+    mdl = num("max_daily_loss", 0, 1e12, True, legacy=True)
+    num("max_total_loss", 0, 1e12, legacy=True)
+    num("max_consecutive_losses", 0, 1000, integer=True)
+    num("max_open_positions", -1, 1000, integer=True)
+    num("probe_size_multiplier", 0, 1)
+    num("reconcile_max_age_min", 0, 1440)
+    num("equity_tol_pct", 0, 10)
+    if Lm is None:
+        bad.append("risk limits unreadable: the mandate cannot be checked against them")
+        return ["mandate invalid: " + b for b in bad]
+    for k, v in (("max_order", mo), ("max_daily_loss", mdl)):
+        lv = Lm.get(k, Lm.get(k + "_usd"))
+        if v is not None and lv is not None and v > float(lv):
+            bad.append("%s %g exceeds the risk limits' %s %g: a mandate is tighter, never looser" % (k, v, k, float(lv)))
+    if mopd is not None and Lm.get("max_orders_per_day") is not None and mopd > float(Lm["max_orders_per_day"]):
+        bad.append("max_orders_per_day exceeds the risk limits'")
+    if M.get("allow_short") and not Lm.get("allow_short"):
+        bad.append("allow_short is on but the risk limits have allow_short false")
+    for c, flag in (("option", "allow_options"), ("crypto", "allow_crypto")):
+        if c in ac and not Lm.get(flag):
+            bad.append("asset class %s is listed but the risk limits have %s false" % (c, flag))
+    if M.get("mode", "paper") == "live" and Lm.get("paper", True):
+        bad.append("mode live but the risk limits require paper")
+    if M.get("base_currency") and Lm.get("base_currency") and str(M["base_currency"]).upper() != str(Lm["base_currency"]).upper():
+        bad.append("base_currency differs from the risk limits'")
+    return ["mandate invalid: " + b for b in bad]
+
 
 def load_ledger(p):
     if not p or not os.path.exists(p):
@@ -143,19 +247,46 @@ def check(a):
         a.gate_dir = resolve_gate_dir(getattr(a, "gate_dir", None))  # T7
     except GateDirError as e:
         print(json.dumps(dict(verdict="NEEDS_YES", reasons=["gate: " + str(e)]), indent=2)); sys.exit(1)
+    from gate import check_obj, issued_row, verify
     M = json.load(open(a.mandate))
     o = json.load(open(a.order))
     rk = json.load(open(a.risk))
-    now = datetime.fromisoformat(a.now) if a.now else datetime.now()
+    halt, need, stop_all = [], [], []  # stop_all: halts that stop exits too (revoked, HALT file, invalid, tampered)
+    try:
+        Lm = json.load(open(a.limits))
+    except (OSError, ValueError, TypeError):
+        Lm = None
+    stop_all += validate_mandate(M, Lm)
+    if not M.get("signature"):
+        need.append("mandate is not signed: the user runs mandate.py sign --mandate <file> --ack \"%s\"" % MANDATE_ACK)
+    elif not check_obj(M, "signature", a.gate_dir, "MS1"):
+        stop_all.append("mandate signature invalid: the file was edited after signing, or signed with another gate key")
+    tok = getattr(a, "token", None) or rk.get("nonce")
+    row = issued_row(tok, a.gate_dir) if tok else None
+    tz = _tz(M, Lm)
+    tol = float(((Lm or {}).get("gate") or {}).get("clock_tolerance_s", 120))
+    if row and row.get("checked_at"):
+        # T8: the mandate's window and day run on the gate's clock (risk_check's broker-anchored time)
+        now = _parse_ts(row["checked_at"]).astimezone(tz)
+        if a.now:
+            n2 = _parse_ts(a.now)
+            n2 = n2 if n2.tzinfo else n2.replace(tzinfo=tz)  # a naive --now is read in the mandate's timezone
+            if abs((n2 - now).total_seconds()) > tol:
+                need.append("--now is %+.0fs from the risk_check clock for this nonce (tolerance %.0fs)"
+                            % ((n2 - now).total_seconds(), tol))
+    else:
+        now = _parse_ts(a.now) if a.now else datetime.now(tz)
+        now = (now if now.tzinfo else now.replace(tzinfo=tz)).astimezone(tz)
+        if tok:
+            need.append("no gate-log record of this nonce's check time: the window cannot be checked on the gate clock")
     day = now.date().isoformat()
     L = load_ledger(a.ledger)
     T = today_rows(L, day)
-    halt, need = [], []
 
     if M.get("revoked"):
-        halt.append("mandate revoked")
+        stop_all.append("mandate revoked")
     if os.path.exists(halt_file(a.mandate)):
-        halt.append("HALT file present: " + open(halt_file(a.mandate)).read().strip()[:200])
+        stop_all.append("HALT file present: " + open(halt_file(a.mandate)).read().strip()[:200])
     try:
         g, e = date.fromisoformat(M["granted_on"]), date.fromisoformat(M["expires_on"])
         if (e - g).days > MAX_DAYS:
@@ -198,26 +329,27 @@ def check(a):
         need.append("client_order_id %s already in the ledger: this is a retry or a duplicate" % coid)
     if rk.get("verdict") != "pass" or (rk.get("override") or {}).get("accepted"):
         need.append("risk_check verdict is %s, not a plain pass" % rk.get("verdict"))
-    tok = getattr(a, "token", None) or rk.get("nonce")
     if not tok:
         need.append("no nonce from risk_check: the hard stop needs it echoed")
     else:
-        sys.path.insert(0, HERE)
-        from gate import verify  # check only; preview.py consumes the token
-        ok, why, _t = verify(tok, o, M.get("mode", "paper"), getattr(a, "limits", None), getattr(a, "gate_dir", None),
+        # check only; preview.py consumes the token
+        ok, why, _t = verify(tok, o, M.get("mode", "paper"), getattr(a, "limits", None), a.gate_dir,
                              False, a.now, consume=False)
         need += ["gate: " + w for w in why]
         if not is_exit:
-            from gate import issued_row
-            reconcile_gate(a, M, issued_row(tok, getattr(a, "gate_dir", None)), halt, need)
+            reconcile_gate(a, M, row, halt, need)
+    # T8: asset class and notional as risk_check derived them (gate log), never the order's own label
+    ac = (row or {}).get("asset_class")
+    if ac is None:
+        need.append("the gate log has no asset class for this nonce: run risk_check again")
     # scope applies to exits too (T3: the old is_exit skip let any held symbol auto-trade)
     sym = str(o.get("symbol", "")).upper()
     if [s_.upper() for s_ in M.get("symbols", [])] and sym not in [s_.upper() for s_ in M["symbols"]]:
         need.append(sym + " not in the mandate's symbols")
     if o.get("strategy") not in M.get("strategies", []):
         need.append("strategy %r not in the mandate" % o.get("strategy"))
-    if o.get("asset_class", "equity") not in M.get("asset_classes", ["equity"]):
-        need.append("asset class %s not in the mandate" % o.get("asset_class", "equity"))
+    if ac is not None and ac not in M.get("asset_classes", ["equity"]):
+        need.append("asset class %s not in the mandate" % ac)
     if is_exit:
         held = ledger_position(L, M.get("id"), sym)
         if held + 1e-9 < float(o.get("qty", 0) or 0):
@@ -227,7 +359,11 @@ def check(a):
         if o.get("side") == "sell" and not M.get("allow_short", False):
             need.append("short entries are not in the mandate")
         px = o.get("limit_price") or o.get("price") or 0
-        notional = float(px) * float(o.get("qty", 0))
+        notional = (row or {}).get("notional")  # qty x price x multiplier x fx, base currency (risk_check)
+        if notional is None:
+            need.append("the gate log has no notional for this nonce: run risk_check again")
+            notional = float(px or 0) * float(o.get("qty", 0))
+        notional = float(notional)
         if not px:
             need.append("entry has no limit price; the mandate only covers limit orders")
         cap = lim(M, "max_order") * (float(M.get("probe_size_multiplier", 0.25)) if M.get("probe") else 1)
@@ -247,8 +383,8 @@ def check(a):
                     opened[r["symbol"]] = opened.get(r["symbol"], 0) + (-1 if r.get("is_exit") else 1)
             if sum(1 for v in opened.values() if v > 0) >= M["max_open_positions"] and opened.get(sym, 0) <= 0:
                 need.append("max open positions reached")
-    verdict = "HALT" if halt and not (is_exit and not any(h.startswith(("mandate revoked", "HALT")) for h in halt)) else (
-        "NEEDS_YES" if need else "AUTO_OK")
+    verdict = "HALT" if stop_all or (halt and not is_exit) else ("NEEDS_YES" if need else "AUTO_OK")
+    halt = stop_all + halt
     if verdict == "HALT" and not M.get("revoked") and not os.path.exists(halt_file(a.mandate)):
         with open(halt_file(a.mandate), "w") as f:
             f.write("%s %s" % (now.isoformat(timespec="minutes"), "; ".join(halt)))
@@ -259,11 +395,37 @@ def check(a):
     sys.exit({"AUTO_OK": 0, "NEEDS_YES": 1, "HALT": 2}[verdict])
 
 
+def sign(a):
+    """The user signs the mandate once, with the exact sentence; the signature is an HMAC with the gate key
+    over every field, so any later edit makes check HALT (T8)."""
+    from gate import gate_dir, sign_obj
+    gd = gate_dir(getattr(a, "gate_dir", None))
+    if a.ack != MANDATE_ACK:
+        print(json.dumps(dict(signed=False, error='--ack must be exactly: "%s" (typed by the user)' % MANDATE_ACK)))
+        sys.exit(2)
+    M = json.load(open(a.mandate))
+    try:
+        Lm = json.load(open(a.limits))
+    except (OSError, ValueError):
+        Lm = None
+    bad = validate_mandate(M, Lm)
+    if bad:
+        print(json.dumps(dict(signed=False, reasons=bad), indent=2)); sys.exit(2)
+    M.pop("signature", None)
+    M["signed_at"] = datetime.now(_tz(M, Lm)).isoformat(timespec="seconds")
+    M["signature"] = sign_obj(M, gd, "MS1")
+    with open(a.mandate, "w") as f:
+        json.dump(M, f, indent=2); f.write("\n")
+    with open(os.path.join(gd, "mandates.jsonl"), "a") as f:
+        f.write(json.dumps(dict(event="signed", id=M.get("id"), at=M["signed_at"], sha256=file_sha256(a.mandate))) + "\n")
+    print(json.dumps(dict(signed=True, mandate_id=M.get("id"), signed_at=M["signed_at"], gate_dir=gd), indent=2))
+
+
 def record(a):
     o = json.load(open(a.order))
     M = json.load(open(a.mandate)) if os.path.exists(a.mandate) else {}
     px = a.fill_price or o.get("limit_price") or 0
-    row = dict(ts=a.now or datetime.now().isoformat(timespec="seconds"), mandate_id=M.get("id"),
+    row = dict(ts=a.now or datetime.now(_tz(M, None)).isoformat(timespec="seconds"), mandate_id=M.get("id"),
                client_order_id=o.get("client_order_id"),
                symbol=o.get("symbol"), side=o.get("side"), qty=o.get("qty"), price=px,
                notional=round(float(px) * float(o.get("qty", 0)), 2), is_exit=bool(o.get("is_exit")),
@@ -346,7 +508,7 @@ if __name__ == "__main__":
     sys.path.insert(0, HERE)
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("check", "record", "status", "halt", "reconcile"):
+    for name in ("check", "record", "status", "halt", "reconcile", "sign"):
         p = sp.add_parser(name)
         p.add_argument("--mandate", default=DEFAULT_M)
         p.add_argument("--ledger", default=os.path.join(HERE, "..", "assets", "mandate-ledger.jsonl"))
@@ -369,5 +531,8 @@ if __name__ == "__main__":
             p.add_argument("--tol", type=float, default=0.01, help="price tolerance as a fraction")
         if name == "halt":
             p.add_argument("--reason", required=True)
+        if name == "sign":
+            p.add_argument("--ack", required=True, help="the exact sentence, typed by the user: " + MANDATE_ACK)
+            p.add_argument("--gate-dir"); p.add_argument("--limits", default=os.path.join(HERE, "..", "assets", "risk-limits.json"))
     a = ap.parse_args()
-    {"check": check, "record": record, "status": status, "halt": halt, "reconcile": reconcile}[a.cmd](a)
+    {"check": check, "record": record, "status": status, "halt": halt, "reconcile": reconcile, "sign": sign}[a.cmd](a)
