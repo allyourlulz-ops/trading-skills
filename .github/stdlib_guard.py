@@ -25,7 +25,7 @@ def is_std(top):
 
 
 root = pathlib.Path(__file__).resolve().parent.parent / "skills"
-local = {p.stem for p in root.rglob("scripts/*.py")} | {"run_golden"}
+local = {p.stem for p in root.rglob("scripts/*.py")} | {p.stem for p in root.rglob("evals/*.py")} | {"run_golden"}
 bad = []
 for p in sorted(root.rglob("*.py")):
     if "assets" in p.parts:  # templates for the user's own engine, not shipped tooling
