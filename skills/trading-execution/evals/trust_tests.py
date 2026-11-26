@@ -247,6 +247,104 @@ def P3_checked_at_is_in_the_limits_timezone(e):
     return str(out.get("checked_at", "")).endswith("-05:00") and "T11:00" in str(out.get("checked_at"))
 
 
+# ---------------------------------------------------------------- T3 margin and exits from broker data (P10)
+def pf_with(**kw):
+    pf = copy.deepcopy(PORTFOLIO)
+    pf.update(kw)
+    return {k: v for k, v in pf.items() if v is not None}
+
+
+HELD_AAPL = [{"symbol": "AAPL", "side": "long", "qty": 10, "price": 190, "stop": 185, "currency": "USD"}]
+EXIT = dict(jl(os.path.join(F, "order_exit.json")))
+
+
+@test
+def T3_margin_derived_from_settled_cash_fails(e):
+    return failed(e.rc(pf=pf_with(settled_cash=1000)), "MARGIN_OFF")
+
+
+@test
+def T3_uses_margin_false_cannot_hide_margin(e):
+    return failed(e.rc(order=dict(ORDER, uses_margin=False), pf=pf_with(settled_cash=1000)), "MARGIN_OFF")
+
+
+@test
+def T3_missing_settled_cash_fails(e):
+    return failed(e.rc(pf=pf_with(settled_cash=None)), "NO_CASH")
+
+
+@test
+def T3_short_entry_is_margin(e):
+    o = jl(os.path.join(F, "order_short.json"))
+    return failed(e.rc(order=o, limits=dict(LIMITS_OPEN, allow_margin=False)), "MARGIN_OFF")
+
+
+@test
+def T3_control_cash_covers_the_order_passes(e):
+    ex, out = e.rc()
+    return passed((ex, out)) and (out.get("margin") or {}).get("uses_margin") is False
+
+
+@test
+def T3_exit_without_broker_positions_read_fails(e):
+    return failed(e.rc(order=EXIT, pf=pf_with(positions=HELD_AAPL, positions_source=None)), "EXIT_UNVERIFIED")
+
+
+@test
+def T3_exit_on_stale_positions_read_fails(e):
+    pf = pf_with(positions=HELD_AAPL, positions_source={"source": "alpaca:get_all_positions", "as_of": "2026-11-24T10:30:00-05:00"})
+    return failed(e.rc(order=EXIT, pf=pf), "EXIT_UNVERIFIED")
+
+
+@test
+def T3_control_verified_exit_passes(e):
+    return passed(e.rc(order=EXIT, pf=pf_with(positions=HELD_AAPL)))
+
+
+MANDATE = jl(os.path.join(SKILL, "assets", "mandate.example.json"))
+
+
+def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, now=NOW, extra=()):
+    """risk_check this order, then mandate.py check it. Returns (exit, out, risk_out)."""
+    lim = LIMITS if limits is None else limits
+    ex, risk = e.rc(order=order, limits=lim, **(rc_kw or {}))
+    rp = e.write(risk, "risk.json")
+    mdir = os.path.join(e.tmp, "mandate"); os.makedirs(mdir, exist_ok=True)
+    mp = os.path.join(mdir, "mandate.json")
+    json.dump(MANDATE if mandate is None else mandate, open(mp, "w"))
+    lp = os.path.join(mdir, "ledger.jsonl")
+    with open(lp, "w") as f:
+        for r in ledger:
+            f.write(json.dumps(r) + "\n")
+    args = ["check", "--order", e.write(order), "--risk", rp, "--mandate", mp, "--ledger", lp,
+            "--gate-dir", e.gate, "--limits", e.write(lim, "limits_m.json")]
+    if now:
+        args += ["--now", now]
+    mx, out = e.run("mandate.py", *(args + list(extra)))
+    return mx, out, risk
+
+
+TSLA_HELD = [{"symbol": "TSLA", "side": "long", "qty": 5, "price": 350, "stop": 330, "currency": "USD"}]
+
+
+@test
+def T3_mandate_exit_outside_the_mandate_needs_yes(e):
+    o = dict(EXIT, symbol="TSLA", qty=5, limit_price=350.0, stop_price=None, target_price=None,
+             client_order_id="m-tsla-x", strategy="ema9-pullback-v2")
+    o = {k: v for k, v in o.items() if v is not None}
+    mx, out, risk = mandate_check(e, o, rc_kw={"pf": pf_with(positions=TSLA_HELD), "contract": None})
+    return risk.get("verdict") == "pass" and out.get("verdict") == "NEEDS_YES" and \
+        any("TSLA not in the mandate" in r for r in out.get("reasons", []))
+
+
+@test
+def T3_mandate_exit_without_a_ledger_position_needs_yes(e):
+    o = dict(EXIT, client_order_id="m-aapl-x", strategy="ema9-pullback-v2")
+    mx, out, risk = mandate_check(e, o, rc_kw={"pf": pf_with(positions=HELD_AAPL), "contract": None})
+    return risk.get("verdict") == "pass" and out.get("verdict") == "NEEDS_YES" and \
+        any("no open AAPL position" in r for r in out.get("reasons", []))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
