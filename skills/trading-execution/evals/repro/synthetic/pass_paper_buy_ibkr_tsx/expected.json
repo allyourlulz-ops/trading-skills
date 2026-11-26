@@ -58,7 +58,7 @@
    "endpoint": "https://localhost:5000/v1/api",
    "gate": "OPEN",
    "mode": "paper",
-   "nonce": "RC2.PASS.a4ca018ed0c98671.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.PASS.00a355d3652da984.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": false,
    "preview": [
     "MODE: PAPER, simulated fills, https://localhost:5000/v1/api",
@@ -67,7 +67,7 @@
     "Purpose: open position",
     "Stop: sent as a bracket leg",
     "client_order_id: repro-pass-paper-buy-ibkr-tsx",
-    "Nonce: RC2.PASS.a4ca018ed0c98671.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
+    "Nonce: RC2.PASS.00a355d3652da984.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
     "Gate: OPEN. Send only after the user's explicit yes for this exact order."
    ],
    "preview_first_line": "MODE: PAPER, simulated fills, https://localhost:5000/v1/api",
@@ -84,7 +84,8 @@
     "source": "synthetic: TSX regular session 09:30-16:00 ET",
     "tolerance_s": 120
    },
-   "fingerprint": "a4ca018ed0c98671",
+   "fingerprint": "00a355d3652da984",
+   "limits_sha256": "de832bc8ec271b35fa3f465a7ba036022b016fcde122dd3c85245caa0f97ab9f",
    "limits_used": {
     "allow_crypto": false,
     "allow_margin": false,
@@ -119,7 +120,7 @@
    },
    "mode": "paper",
    "next": "Show preview.py output with this nonce, then get the user's yes for this exact order.",
-   "nonce": "RC2.PASS.a4ca018ed0c98671.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.PASS.00a355d3652da984.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": null,
    "reasons": [],
    "sizing": {
