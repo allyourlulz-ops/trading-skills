@@ -62,4 +62,54 @@ g = subprocess.run([sys.executable, os.path.join(HERE, "golden", "run_golden.py"
 print(g.stdout.strip().splitlines()[-1] if g.stdout.strip() else g.stderr[-300:])
 if g.returncode:
     print(g.stdout); fails.append("golden")
+# repro: whole place-it path (portfolio -> order -> risk_check -> preview -> simulated fill) vs expected.json
+r = subprocess.run([sys.executable, os.path.join(HERE, "repro.py"), "--all"], capture_output=True, text=True)
+print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[-300:])
+if r.returncode:
+    print(r.stdout + r.stderr[-500:]); fails.append("repro")
+# record_alpaca: paper host only, keys from env only (no network is touched by these checks)
+sys.path.insert(0, HERE)
+import record_alpaca as _ra
+import repro as _rp
+import record_ibkr as _ib
+def _refused_ib(u):
+    try:
+        _ib.local_gateway(u); return False
+    except ValueError:
+        return True
+def _refused_acct(a, w):
+    try:
+        _ib.paper_account(a, w); return False
+    except ValueError:
+        return True
+def _refused(u):
+    try:
+        _ra.paper_only(u); return False
+    except ValueError:
+        return True
+for name, cond in (
+        ("record_alpaca accepts only the paper host", _ra.paper_only("https://paper-api.alpaca.markets/") == _ra.PAPER),
+        ("record_alpaca refuses live, http, port, path and look-alike hosts", all(_refused(u) for u in (
+            "https://api.alpaca.markets", "http://paper-api.alpaca.markets", "https://paper-api.alpaca.markets:8443",
+            "https://paper-api.alpaca.markets/v2", "https://paper-api.alpaca.markets.evil.com", "https://u@paper-api.alpaca.markets"))),
+        ("record_alpaca redacts account_number and id", _ra.redact({"id": "x", "account_number": "y", "equity": "1"}) ==
+         {"id": "REDACTED", "account_number": "REDACTED", "equity": "1"}),
+        ("record_alpaca without keys exits 2 before any request", subprocess.run(
+            [sys.executable, os.path.join(HERE, "record_alpaca.py"), "--out", os.path.join(TMP, "rec")], capture_output=True,
+            env={k: v for k, v in os.environ.items() if not k.startswith("APCA_")}).returncode == 2
+         and not os.path.exists(os.path.join(TMP, "rec"))),
+        ("record_ibkr accepts only a local https gateway", all(_refused_ib(u) for u in (
+            "http://localhost:5000/v1/api", "https://api.ibkr.com/v1/api", "https://localhost.evil.com/v1/api")) and
+         _ib.local_gateway("https://localhost:5000/v1/api/") == "https://localhost:5000/v1/api"),
+        ("record_ibkr refuses any account id not starting with DU", _ib.paper_account([{"accountId": "DU1"}]) == "DU1" and
+         all(_refused_acct(a, w) for a, w in (([{"accountId": "U1"}], None), ([{"accountId": "DU1"}, {"accountId": "U2"}], "U2"),
+                                               ([{"accountId": "DU1"}, {"accountId": "U2"}], None), ([{"accountId": "DU1"}], "DU9")))),
+        ("record_ibkr redacts every account id and the account names", _ib.redact(
+            {"accountId": "DU123", "displayName": "Jo", "x": ["DU123 acct", "U999"]}, ["DU123", "U999"]) ==
+         {"accountId": "DU-REDACTED", "displayName": "REDACTED", "x": ["DU-REDACTED acct", "U-REDACTED"]}),
+        ("record_ibkr has no order or POST call", not any(w in open(os.path.join(HERE, "record_ibkr.py")).read()
+                                                          for w in ('method="POST"', "/iserver/account/", "/orders"))),
+        ("repro trims nanosecond Alpaca timestamps for py3.9", _rp._iso("2026-11-25T10:30:00.123456789-05:00") ==
+         "2026-11-25T10:30:00.123456-05:00")):
+    print(("PASS " if cond else "FAIL ") + name); fails += [] if cond else [name]
 print(f"\n{len(fails)} failed" if fails else "\nall passed"); sys.exit(1 if fails else 0)
