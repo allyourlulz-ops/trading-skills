@@ -34,7 +34,7 @@ FIXTURE_DIR/meta.json
   contract, instrument, bar or context file is replaced by the fixed --now (templates for recordings).
 
 Volatile fields are normalised before the diff: the nonce's expiry, random part and MAC, the
-preview's "Nonce: ..." line, and checked_at. Everything else must match exactly. The gate dir is a
+preview's "Nonce: ..." line, checked_at and clock.system_drift_s. Everything else must match exactly. The gate dir is a
 fresh temp dir outside the repository, removed afterwards.
 """
 import argparse, json, os, re, shutil, subprocess, sys, tempfile
@@ -47,6 +47,10 @@ DEFAULT_ROOT = os.path.join(HERE, "repro")
 DEFAULT_CONFIG = os.path.join(SKILL, "assets", "mcp-config.paper-execute.json")
 PAPER_HOST = "paper-api.alpaca.markets"
 NONCE_RE = re.compile(r"RC2\.(PASS|FAIL|OVERRIDE)\.([0-9a-f]{16})\.(paper|live|unknown)\.\d+\.([0-9a-z]+)\.[0-9a-f]+\.[0-9a-f]+")
+
+
+# checked_at and the clock's drift from the machine running the replay change on every run
+VOLATILE = {"checked_at", "system_drift_s"}
 
 
 class Waiting(Exception):
@@ -157,7 +161,7 @@ def _run(args):
 
 def normalise(x):
     if isinstance(x, dict):
-        return {k: normalise(v) for k, v in x.items() if k != "checked_at"}
+        return {k: normalise(v) for k, v in x.items() if k not in VOLATILE}
     if isinstance(x, list):
         return [normalise(v) for v in x]
     if isinstance(x, str):
