@@ -737,7 +737,7 @@
    "--order",
    "{F}/order_btc.json",
    "--portfolio",
-   "{F}/pf_noclock.json",
+   "{F}/pf_clock_sat.json",
    "--mode",
    "paper",
    "--limits",
