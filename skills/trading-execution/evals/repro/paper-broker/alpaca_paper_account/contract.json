@@ -1,0 +1,16 @@
+{
+ "decision_time": "{NOW}",
+ "series": [
+  {
+   "name": "SPY quote (template, not a recorded quote)",
+   "symbol": "SPY",
+   "role": "quote",
+   "source": "template:hand-written",
+   "as_of": "{NOW}",
+   "last_bar_end": "{NOW}",
+   "timeframe": "1m",
+   "adjustment": "raw",
+   "currency": "USD"
+  }
+ ]
+}
