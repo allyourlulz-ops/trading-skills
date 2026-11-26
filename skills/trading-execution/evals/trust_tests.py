@@ -345,6 +345,62 @@ def T3_mandate_exit_without_a_ledger_position_needs_yes(e):
         any("no open AAPL position" in r for r in out.get("reasons", []))
 
 
+# ---------------------------------------------------------------- T4 instrument override whitelist (P2)
+@test
+def T4_P2_equity_session_24x7_cannot_skip_market_closed(e):
+    return failed(e.rc(pf=pf_clock(is_open=False), instrument={"session": "24x7"}), "INSTRUMENT")
+
+
+@test
+def T4_P2_multiplier_001_cannot_inflate_size(e):
+    return failed(e.rc(order=dict(ORDER, qty=5263), instrument={"multiplier": 0.01}), "INSTRUMENT")
+
+
+@test
+def T4_gap_pct_below_the_class_default_fails(e):
+    return failed(e.rc(instrument={"gap_pct": 0.0}), "INSTRUMENT")
+
+
+@test
+def T4_gap_pct_out_of_range_fails(e):
+    return failed(e.rc(instrument={"gap_pct": 1.5}), "INSTRUMENT")
+
+
+@test
+def T4_lot_step_nan_fails(e):
+    return failed(e.rc(instrument_raw='{"lot_step": NaN}'), "INSTRUMENT")
+
+
+@test
+def T4_lot_step_out_of_range_fails(e):
+    return failed(e.rc(instrument={"lot_step": 1e9}), "INSTRUMENT")
+
+
+@test
+def T4_unknown_instrument_key_fails(e):
+    return failed(e.rc(instrument={"max_loss_per_trade": 99999}), "INSTRUMENT")
+
+
+@test
+def T4_limits_defaults_cannot_change_the_session(e):
+    lim = dict(LIMITS, instrument_defaults=dict(LIMITS.get("instrument_defaults") or {}, equity={"session": "24x7"}))
+    return failed(e.rc(pf=pf_clock(is_open=False), limits=lim), "INSTRUMENT")
+
+
+@test
+def T4_position_size_cli_refuses_an_override(e):
+    ex, out = e.run("position_size.py", "--symbol", "AAPL", "--entry", "190", "--stop", "185", "--portfolio",
+                    e.write(PORTFOLIO), "--limits", e.write(LIMITS), "--instrument", e.write({"multiplier": 0.01}))
+    return ex == 2 and "multiplier" in str(out.get("error"))
+
+
+@test
+def T4_control_whitelisted_overrides_pass(e):
+    inst = {"asset_class": "equity", "currency": "USD", "lot_step": 0.001, "min_qty": 0.001, "gap_pct": 0.06,
+            "cluster": "us_megacap_tech", "multiplier": 1, "session": "exchange", "source": "alpaca:get_asset"}
+    return passed(e.rc(instrument=inst))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
