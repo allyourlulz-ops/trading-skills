@@ -78,6 +78,18 @@
     }
    },
    "tools": {}
+  },
+  "orderflow": {
+   "registry": "github",
+   "mode": "data (read-only; the server cannot place orders)",
+   "optional": true,
+   "repo": "zadescoxp/order-flow-mcp",
+   "commit": "559c370012c12b41210a282df633fe7cfe8c143e",
+   "committed": "2026-11-25",
+   "license": "Apache-2.0",
+   "runtime": "Node.js 20+",
+   "_note": "Transitive npm deps follow the repo's own package-lock.json at this commit; not hash-checked here. dist/ is committed, so npx needs no build step.",
+   "tools": {}
   }
  },
  "optional_servers": {
