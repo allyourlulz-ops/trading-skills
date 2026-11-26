@@ -172,17 +172,22 @@ ruff (latest and 0.8.4) clean on `skills .github`; stdlib guard ok on 3.12 and 3
 ## 5. Audit register
 
 The claim text for T1-T9, M1-M11, B1-B10, S1-S6 and C1-C5 is in the phase plan, which did **not**
-reach this run (it is not in the repo, the project files or the earlier audit). Only the IDs whose
+reach the Phase 0 run (it is not in the repo, the project files or the earlier audit). Phase 1 had the
+plan; the T rows below carry its claim text and Phase 1 status. M, B, S and C rows are unchanged. Only the IDs whose
 subject is known are assessed. Where the user reported a spot-check status, it is listed as
 reported and marked **not independently verified**.
 
 | ID | Subject | Status | Evidence |
 |---|---|---|---|
-| T1 | (claim text not received) | confirmed (user spot-check; not independently verified) | — |
-| T2-T5 | (claim text not received) | not assessed | — |
-| T6 | Limits hash bound to the gate | refuted (contents are hashed and MAC-covered; not in the fingerprint; skipped without a path) | `gate.py:60-63`, `:98-99`, `:132`, `:40-42`, `:153`; §3(a) |
-| T7 | Gate dir location | partial: default refuted; inside-project accepted, nothing stops it | `gate.py:45-48`; `risk_check.py:329`; §3(b) |
-| T8-T9 | (claim text not received) | not assessed | — |
+| T1 | Derive asset_class from the instrument spec; fail on order/spec disagreement; reject an equity-labelled option (multiplier 100) | **closed in Phase 1** (was confirmed) | §9; `position_size.py:70-136`, `risk_check.py:341` |
+| T2 | Broker clock for `--now`, tolerance, drift reported (closes P1; P3 fixed under it) | **closed in Phase 1** | §9; `risk_check.py:183-220`, `:332`, `:472`; `gate.py:43`, `:205-213` |
+| T3 | `uses_margin` from notional vs settled cash; `is_exit` against broker positions; mandate exit scope | **closed in Phase 1** | §9; `risk_check.py:223-282`; `mandate.py:224-236`, `:348-360` |
+| T4 | Whitelist instrument keys; range-check gap_pct, multiplier, lot_step (closes P2) | **closed in Phase 1** | §9; `position_size.py:139-215` |
+| T5 | Mandatory reconcile before any entry; hard-fail unreconciled equity | **closed in Phase 1** | §9; `mandate.py:184-221`, `:458-502` |
+| T6 | Hash limits contents; bind the hash into the fingerprint; verify without limits fails closed | **closed in Phase 1** (Phase 0: partly refuted, contents were hashed but not in the fingerprint) | §9; `gate.py:47-52`, `:115-123`, `:217-228`; `risk_check.py:481` |
+| T7 | Resolve and print gate_dir; fail inside the project or skill root (env included) | **closed in Phase 1** | §9; `gate.py:55-104`; `risk_check.py:464`; `preview.py:104` |
+| T8 | Verify every mandate field per call; signed mandate | **closed in Phase 1** | §9; `mandate.py:85-157`, `:244-300`, `:401-425` |
+| T9 | `verify_fill.py`: post-fill re-check against the nonce, HALT on mismatch | **closed in Phase 1** | §9; `scripts/verify_fill.py:55-136`; `risk_check.py:370-373` |
 | M1, M2 | (claim text not received) | confirmed (user spot-check; not independently verified) | — |
 | M3-M11 | (claim text not received) | not assessed | — |
 | B1 | (claim text not received) | confirmed (user spot-check; not independently verified) | — |
@@ -271,3 +276,86 @@ accounts). `exec/evals/repro.py` has a simulated broker layer selected by `meta.
 - Register claims T1-T9, M1-M11, B1-B10, S1-S6, C1-C5: text not received; see §5.
 - No recorder was run; no real broker response exists in the repo.
 - GitHub releases (as opposed to tags) were not checked (A4).
+
+---
+
+## 9. Phase 1: trust boundary (T1-T9), branch `phase-1-trust`
+
+Version 2.2.0-dev in both SKILL.md files. Every finding was done test-first: the tests in
+`skills/trading-execution/evals/trust_tests.py` were written, run and seen to fail against the code of
+the time, then the fix went in. Run against the Phase 0 tree, the final suite scores **11/87**: the 11
+that pass are honest controls, two regression checks (the tampered-limits preview, refuted in Phase 0;
+the new limits guard, which is eval code), and `T8_sign_needs_the_exact_ack`, which passes vacuously on
+Phase 0 because `mandate.py sign` did not exist. Against Phase 1: **87/87**, on Python 3.12 and 3.9.
+One commit per ID; CHANGELOG `### Fixed` names each.
+
+### 9.1 Status
+
+| ID | Status | Fix | Tests |
+|---|---|---|---|
+| T1 (P9) | closed | Asset class = instrument spec's `asset_class`, else the order's label, else the symbol's shape; OCC symbols must be `option`, `BASE/QUOTE` must be `crypto`, tickers cannot be option/crypto, `etf` needs a spec saying etf, multiplier 100 on a non-option fails. HARD `ASSET_CLASS`. The derived class drives sizing, timing gates, the gate log and the mandate. | `T1_*` (8) |
+| T2 (P1, P3) | closed | Every check needs `portfolio.clock {as_of, source}`; `--now` (or machine time) within `gate.clock_tolerance_s` (120, max 300) of it, else HARD `CLOCK_DRIFT`/`NO_CLOCK`; `clock` output block reports the drift; naive `--now` refused; a live check must also be within tolerance of the machine clock. P1: nonce expiry also runs on the wall clock from issue (`wall`, `ttl` in the gate log), TTL capped at 300 s. P3: entry window and dates in `limits.timezone`. | `T2_*` (8), `P3_*` (3) |
+| T3 (P9, P10) | closed | `uses_margin` derived: a short, or notional > `portfolio.settled_cash`; HARD `MARGIN_OFF` / `NO_CASH` while margin is off; `margin` output block. Exits need `portfolio.positions_source {source, as_of}` within the clock tolerance (HARD `EXIT_UNVERIFIED`). mandate.py: scope (symbols, strategy, asset class) applies to exits, and an exit must close a position this mandate's ledger opened. | `T3_*` (10) |
+| T4 (P2) | closed | `INSTRUMENT_KEYS` whitelist; multiplier and session fixed per class (restating the class value is allowed); gap_pct in [class default, 1]; lot_step, min_qty finite and in [1e-9, 1e6] (JSON `NaN` used to pass); limits defaults cannot change a session. HARD `INSTRUMENT`. | `T4_*` (10) |
+| T5 | closed | `mandate.py reconcile --account` writes a gate-key-signed stamp (ledger sha256, broker equity, verdict, wall time). Entries: no stamp / changed ledger / older than `reconcile_max_age_min` / no equity → NEEDS_YES; tampered stamp, breaks, or equity off by more than `equity_tol_pct` from the equity risk_check sized from → HALT. Exits are not blocked. | `T5_*` (6) |
+| T6 | closed | Full sha256 of the limits bytes in the fingerprint; `limits_sha256` printed; verify without limits or with a missing file CLOSED; missing file at issue is an error. | `T6_*` (4) |
+| T7 | closed | `resolve_gate_dir`: realpath (symlinks), refused inside the skill folder, its repository, or the caller's project (cwd ancestor with `.git` or `SKILL.md`), before anything is created; printed as `gate_dir`; `gate.py where`. | `T7_*` (7) |
+| T8 (P11 part) | closed | `validate_mandate` every call (unknown fields, types, required caps, pipeline_verdict, probe, caps vs limits, short/options/crypto vs limits, live vs paper limits) → HALT; `mandate.py sign --ack` (HMAC, gate key): unsigned NEEDS_YES, edited HALT (exits too); window and day on the nonce's recorded check time; asset class and notional from the gate log. | `T8_*` (12) |
+| T9 | closed | `scripts/verify_fill.py`: nonce MAC, log, consumed by preview, not already verified, fingerprint, coid, symbol, side, qty, price vs limit (market vs est_price), broker type/limit, asset class, fill time; any mismatch or bad input writes `<gate_dir>/HALT` (+ mandate HALT); risk_check then refuses entries (HARD `GATE_HALT`), mandate HALTs. Repro runs it on every simulated fill. | `T9_*` (16) |
+| P13 | closed | `evals/limits_guard.py` in run_tests: the copies differ only in intended keys; execution keeps paper on and shorts/options/crypto/margin off. | `P13_*` (2) |
+| HARD invariant | test | Every new code refused by `--override`. | `HARD_new_phase1_codes_cannot_be_overridden` |
+| P7 | open (residual) | Key and log share the gate dir: a key holder can still mint a nonce, a mandate signature and a reconcile stamp (replay in `work/phase1/phase0_replay.out`). Needs OS separation (another user or a keychain), outside stdlib scope. | — |
+| P8 | open (not trust-boundary code in this phase) | Non-Alpaca preview mode still comes from the lock's `mode`; `mcp-lock.json` may not be edited under the Phase 1 rules. | — |
+| P11 | partial | Mandate time is now the gate's recorded check time in the mandate/limits timezone (T8). Ledger P&L is still self-reported (`record --pnl`); M3 (Phase 2) derives today.* from the ledger. | — |
+| P12 | open, deferred | Ledger and HALT still default inside the skill folder. T5 binds the ledger to a signed broker reconcile, so an edited ledger can no longer pass an entry; moving the defaults is a CLI change left for a release with a fallback. | — |
+| P4, P5, P6 | not trust boundary | Backtest and cost findings: Phase 3 (B) and Phase 5 (C). | — |
+
+### 9.2 Judgement calls
+
+1. **Clock anchor = `portfolio.clock.as_of`.** The broker clock reaches the scripts only through the agent-written portfolio; there is no other channel without network access. Forging it now means forging the clock *and* every timestamp that must agree with it, and the nonce's wall-clock expiry cannot be forged without the key. Tolerance 120 s (max 300, the nonce TTL).
+2. **Paper replays may use a recorded `--now`.** Golden, repro and recorded broker fixtures replay fixed times. A paper check far from the machine clock gets a warning; a live check fails `CLOCK_DRIFT`. Nonce expiry also runs on the machine clock in both modes.
+3. **Crypto needs a broker clock too.** `rc_crypto_saturday` now uses `pf_clock_sat.json`. Alpaca's clock call works at any hour; IBKR fixtures supply `meta.clock`.
+4. **Asset class from the symbol's shape** when the spec is silent: OCC regex for options, a `/` for crypto (Alpaca's `BTC/USD` form; `BTCUSD` without the slash is read as a ticker and refused as crypto). `etf` needs a spec because the label alone lowers the gap default.
+5. **A short always uses margin**, so `limits_open.json` gained `allow_margin: true` to keep `rc_short_allowed` meaningful.
+6. **`settled_cash` mapping** in the repro broker layers: Alpaca `non_marginable_buying_power` (else `cash`), IBKR `settledcash` (else `totalcashvalue`). Field names from public docs, not yet checked against a recording.
+7. **Positions are verified for exits only** (T3's text). Entries with an omitted position list are Phase 2 (M).
+8. **Option multiplier**: instrument.json cannot change it (fixed 100 by default); limits may set it within (0, 1000].
+9. **Reconcile scope**: entries need it, exits never wait for it. Missing or stale stamp → NEEDS_YES (the per-order yes still works); tampered stamp, breaks, or equity mismatch → HALT. Defaults `reconcile_max_age_min` 60, `equity_tol_pct` 2 (intraday equity moves).
+10. **Unsigned mandate → NEEDS_YES, edited → HALT**, so an existing unsigned mandate degrades to per-order yes instead of halting. Invalid fields HALT.
+11. **Naive `mandate.py --now`** is read in the mandate's timezone, so old command lines still parse; risk_check refuses a naive `--now`.
+12. **verify_fill: bad or missing input is HALT** (fail closed), which means a mistyped path halts the gate until the user clears it. A partial fill may be re-verified as it grows; a completed fill only once.
+13. **No fallback for newly required inputs** (`clock.as_of`, `settled_cash`, `positions_source` for exits, `--limits` on `gate.py verify`): they fail closed by design; every old flag still parses. Recorded in the CHANGELOG.
+
+### 9.3 Trust table deltas (rows of §2 that changed)
+
+| Input | Verified how now | Still bypassable how |
+|---|---|---|
+| order.`asset_class` | Derived from the spec and the symbol; disagreement HARD | A caller-written spec saying `etf` for a stock |
+| order.`uses_margin` | Derived from notional vs `settled_cash`; shorts always margin | A fabricated `settled_cash` |
+| order.`is_exit` | Needs `positions_source` within the clock tolerance; mandate exits need a ledger position and stay in scope | A fabricated position plus a fresh `positions_source` (outside a mandate) |
+| `--now` | Within 120 s of `clock.as_of`; live also within 120 s of the machine clock; nonce expiry on the wall clock | A consistent forgery of `clock.as_of` and every data timestamp, paper only |
+| instrument.json | Key whitelist; multiplier/session fixed; gap_pct only up; steps finite and in range | `currency`, `cluster` as given |
+| Limits file | Full sha256 in the fingerprint; verify needs it | Any permissive file passed to every step (the hash binds a file, not *the* shipped file) |
+| Gate dir | Refused inside skill, repo, caller project; printed | A dir outside them that the agent can read (P7) |
+| Mandate file | HMAC-signed, re-validated each call against the limits; time, asset class, notional from the gate log | A key holder can re-sign (P7) |
+| Mandate ledger | Bound to a signed reconcile (ledger hash + broker equity) before entries | P&L rows still self-reported (P11) |
+| Fills | `verify_fill.py` against the nonce; HALT on mismatch | It checks the fill object it is shown, not that it came from the broker |
+
+### 9.4 Suites (this branch)
+
+| Suite | Phase 0 end | Phase 1, py3.12.16 | Phase 1, py3.9.25 |
+|---|---|---|---|
+| `exec/evals/run_tests.py` PASS lines | 39 | 42 (+ compile/help `verify_fill.py`, + limits guard), 0 FAIL | 42, 0 FAIL |
+| `exec/evals/trust_tests.py` | n/a (11/87 on the Phase 0 tree) | 87/87 | 87/87 |
+| `exec/evals/golden/run_golden.py` | 62/62 | 62/62 | 62/62 |
+| `exec/evals/repro.py --all` | 7/7 (5 ok, 2 skipped slots) | 7/7 (5 ok, 2 skipped) | 7/7 |
+| `res/evals/run_tests.py` | 161 + 16/16 | 161 + 16/16 | 161 + 16/16 |
+| ruff F,E9 py39 (latest and 0.8.4), stdlib guard | clean | clean | guard ok |
+
+Golden changes, all intentional: `rc_crypto_saturday` uses the new `pf_clock_sat.json`; every `pf_*.json`
+gains `settled_cash`; `pf_hold_aapl`, `pf_heat`, `pf_cluster` gain `positions_source`; `limits_open.json`
+gains `allow_margin: true`. No expected value in `cases.json` changed. The five synthetic repro
+`expected.json` files were re-blessed after review: new `clock`, `margin`, `limits_sha256`, `verify_fill`
+blocks, `settled_cash` / `positions_source` in the built portfolios, the paper-replay warning, and the new
+fingerprints (limits bound in). The repro inputs gained `settled_cash` (three portfolio.json files) and
+`settledcash` (the IBKR summary).
