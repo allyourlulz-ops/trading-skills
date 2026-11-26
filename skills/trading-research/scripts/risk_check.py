@@ -17,6 +17,8 @@ bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","close
 
 Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
               "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "next"}
+Asset class comes from the instrument spec and the symbol's shape, checked against the order's label
+(ASSET_CLASS, HARD, on any disagreement; see position_size.resolve_asset_class).
 reasons are "CODE: text". HARD codes can never be overridden; SOFT codes can, on paper only, with
 --override "reason" (10+ chars) and --override-ack set to the exact sentence the user typed; the
 override is logged to <gate_dir>/overrides.jsonl and the nonce says OVERRIDE.
@@ -37,7 +39,7 @@ except ImportError:  # py<3.9
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from gate import OVERRIDE_ACK, fingerprint, issue  # noqa: E402
-from position_size import SizingError, size  # noqa: E402
+from position_size import SizingError, resolve_asset_class, size  # noqa: E402
 from data_contract import check as contract_check  # noqa: E402
 
 DEFAULT_LIMITS = os.path.join(HERE, "..", "assets", "risk-limits.json")
@@ -221,7 +223,9 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
     qty = float(o["qty"])
     if qty <= 0:
         R.add("BAD_QTY", "qty must be > 0")
-    ac = o.get("asset_class", "equity")
+    ac, ac_problems = resolve_asset_class(sym, o.get("asset_class"), instrument)  # T1: never the label alone
+    for p in ac_problems:
+        R.add("ASSET_CLASS", p)
     exit_ = bool(o.get("is_exit"))
     used: Dict[str, Any] = {k: L.get(k) for k in (
         "base_currency", "max_risk_per_trade_pct", "max_loss_per_trade", "max_portfolio_heat_pct",
@@ -248,6 +252,8 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
     if mode == "live" and L.get("paper", True):
         R.add("LIVE_NOT_ALLOWED", "account is LIVE but limits require paper")
     sizing: Dict[str, Any] = {}
+    if ac_problems:
+        return R, warns, sizing, used
     if exit_:
         check_exit(o, pf, R)
         warns.append("exit order: entry limits are not applied to a verified reduce-only exit")
@@ -282,7 +288,7 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
         for b in blk:
             R.add("BAR", b)
     tblk: List[str] = []
-    mult = timing_gates(L, o, context, now, tblk, warns)
+    mult = timing_gates(L, dict(o, asset_class=ac), context, now, tblk, warns)
     for b in tblk:
         R.add("STALE_CONTEXT" if b.startswith("context is stale") else "TIMING", b)
     today = pf.get("today") or {}
