@@ -1,7 +1,7 @@
 # repro fixtures
 
 `../repro.py` replays each folder here through the whole place-it path, using the real scripts:
-portfolio → order → `risk_check.py` → `preview.py` → simulated fill. It diffs the result against the
+portfolio → order → `risk_check.py` → `preview.py` → simulated fill → `verify_fill.py`. It diffs the result against the
 folder's `expected.json`, ignoring only the nonce's expiry, random part and MAC, the preview's
 "Nonce: … (expires …)" text and `checked_at`. The gate dir is a temp dir outside the repo. Nothing
 here talks to a broker, and no order is ever sent: the "fill" is simulated at the limit price.
