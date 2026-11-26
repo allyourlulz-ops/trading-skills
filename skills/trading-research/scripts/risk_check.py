@@ -321,9 +321,11 @@ def session_gates(L: Dict[str, Any], spec_session: str, pf: Dict[str, Any], now:
 def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str, contract: Optional[Dict[str, Any]],
              instrument: Optional[Dict[str, Any]], bar: Optional[Dict[str, Any]], context: Optional[Dict[str, Any]],
              now: datetime, tz: Any, clock: Optional[Dict[str, Any]] = None,
-             margin: Optional[Dict[str, Any]] = None) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
+             margin: Optional[Dict[str, Any]] = None,
+             gate_halt_dir: Optional[str] = None) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
     """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used).
-    clock, when given, receives the T2 clock report (drift from the broker clock); margin the T3 report."""
+    clock, when given, receives the T2 clock report (drift from the broker clock); margin the T3 report.
+    gate_halt_dir: a HALT file there (written by verify_fill.py) refuses every new entry (GATE_HALT, HARD)."""
     R, warns = Reasons(), []
     if tz is None:
         raise ValueError("limits.timezone could not be loaded (zoneinfo/tzdata missing): the entry window needs it")
@@ -365,6 +367,10 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
     if mode == "live" and L.get("paper", True):
         R.add("LIVE_NOT_ALLOWED", "account is LIVE but limits require paper")
     sizing: Dict[str, Any] = {}
+    hf = os.path.join(gate_halt_dir, "HALT") if gate_halt_dir else None
+    if hf and os.path.exists(hf) and not exit_:  # T9: verify_fill wrote HALT; exits stay allowed
+        R.add("GATE_HALT", "the gate is halted (%s: %s): no new entries until the user clears it"
+              % (hf, open(hf).read().strip()[:200]))
     if ac_problems:
         return R, warns, sizing, used
     if exit_:
@@ -468,7 +474,7 @@ def _main() -> None:
         margin: Dict[str, Any] = {}
         inst = ld(a.instrument)
         R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), inst, ld(a.bar),
-                                          ld(a.context), now, tz, clock, margin)
+                                          ld(a.context), now, tz, clock, margin, gd)
         ac_derived = resolve_asset_class(str(o["symbol"]), o.get("asset_class"), inst)[0]
     except (OSError, ValueError, KeyError, TypeError) as e:
         print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
