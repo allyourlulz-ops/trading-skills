@@ -510,6 +510,79 @@ def T6_missing_limits_file_is_a_fail_not_nolimits(e):
     return p.stdout.strip() == "REFUSED"
 
 
+# ---------------------------------------------------------------- T7 gate dir outside the project
+def _cleanup(p):
+    if os.path.isdir(p):
+        shutil.rmtree(p, ignore_errors=True)
+
+
+@test
+def T7_gate_dir_inside_the_repo_fails(e):
+    g = os.path.join(SKILL, "assets", ".t7-probe-gate")
+    try:
+        res = e.rc(gate=g)
+        return failed(res) and res[1].get("nonce") is None and not os.path.exists(os.path.join(g, "gate.key"))
+    finally:
+        _cleanup(g)
+
+
+@test
+def T7_env_gate_dir_inside_the_skill_fails(e):
+    g = os.path.join(SKILL, ".t7-env-gate")
+    env = dict(os.environ, TRADING_GATE_DIR=g)
+    args = ["--order", e.write(ORDER), "--portfolio", e.write(PORTFOLIO), "--mode", "paper", "--limits", e.write(LIMITS),
+            "--now", NOW, "--contract", e.write(quote_contract("AAPL"))]
+    try:
+        res = e.run("risk_check.py", *args, env=env)
+        return failed(res) and not os.path.exists(os.path.join(g, "gate.key"))
+    finally:
+        _cleanup(g)
+
+
+@test
+def T7_gate_dir_inside_the_callers_project_fails(e):
+    proj = os.path.join(e.tmp, "agent-project"); os.makedirs(os.path.join(proj, ".git"))
+    args = ["--order", e.write(ORDER), "--portfolio", e.write(PORTFOLIO), "--mode", "paper", "--limits", e.write(LIMITS),
+            "--now", NOW, "--contract", e.write(quote_contract("AAPL")), "--gate-dir", os.path.join(proj, "state", "gate")]
+    return failed(e.run("risk_check.py", *args, cwd=proj))
+
+
+@test
+def T7_symlinked_gate_dir_into_the_skill_fails(e):
+    target = os.path.join(SKILL, ".t7-link-target"); os.makedirs(target, exist_ok=True)
+    link = os.path.join(e.tmp, "gate-link")
+    os.symlink(target, link)
+    try:
+        res = e.rc(gate=link)
+        return failed(res) and not os.path.exists(os.path.join(target, "gate.key"))
+    finally:
+        _cleanup(target)
+
+
+@test
+def T7_gate_dir_is_resolved_and_printed(e):
+    ex, out = e.rc()
+    return passed((ex, out)) and out.get("gate_dir") == os.path.realpath(e.gate)
+
+
+@test
+def T7_preview_refuses_a_gate_dir_inside_the_repo(e):
+    g = os.path.join(SKILL, ".t7-preview-gate")
+    try:
+        vx, v = e.run("preview.py", "--order", e.write(ORDER), "--nonce", "RC2.PASS.x", "--config",
+                      os.path.join(F, "cfg_paper.json"), "--limits", e.write(LIMITS), "--gate-dir", g, "--json")
+        return vx != 0 and v.get("gate") == "CLOSED" and not os.path.exists(g)
+    finally:
+        _cleanup(g)
+
+
+@test
+def T7_gate_where_prints_the_resolved_dir(e):
+    vx, v = e.run("gate.py", "where", "--gate-dir", e.gate)
+    bx, b = e.run("gate.py", "where", "--gate-dir", os.path.join(SKILL, ".t7-where"))
+    return vx == 0 and v.get("gate_dir") == os.path.realpath(e.gate) and bx != 0 and not os.path.exists(os.path.join(SKILL, ".t7-where"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-k", action="append", default=[], help="run only tests whose name contains this")
