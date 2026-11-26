@@ -100,6 +100,8 @@ def alpaca_portfolio(d, meta):
         "as_of": _iso(clock["timestamp"]),
         "base_currency": str(acct.get("currency") or "USD").upper(),
         "equity": eq, "buying_power": float(bp),
+        # settled cash for the derived margin check (T3): the non-marginable figure, else cash (judgement call)
+        "settled_cash": float(acct.get("non_marginable_buying_power") or acct["cash"]),
         # paper is proven by the host the responses came from, not by a field Alpaca returns
         "paper": base == "https://" + PAPER_HOST,
         "clock": {"is_open": clock["is_open"] is True, "next_close": clock.get("next_close"),
@@ -107,6 +109,8 @@ def alpaca_portfolio(d, meta):
         "positions": [{"symbol": p["symbol"], "side": p.get("side", "long"), "qty": abs(float(p["qty"])),
                        "price": float(p.get("current_price") or p["avg_entry_price"]), "stop": None,
                        "currency": "USD", "multiplier": 1} for p in pos],
+        "positions_source": {"source": "alpaca:GET /v2/positions (%s)" % (base or "unknown host"),
+                             "as_of": _iso(clock["timestamp"])},
         "today": _today(meta, eq, last),
     }
 
@@ -135,6 +139,9 @@ def ibkr_portfolio(d, meta):
     return {
         "as_of": meta["now"] if meta.get("now") not in ("from_clock", "from_recorded") else clk.get("as_of"),
         "base_currency": ccy, "equity": eq, "buying_power": bp,
+        # settled cash for the derived margin check (T3): settledcash, else totalcashvalue (judgement call;
+        # field names from the public docs, not yet checked against a recording)
+        "settled_cash": _amt(summ, "settledcash") if _amt(summ, "settledcash") is not None else _amt(summ, "totalcashvalue"),
         "paper": aid.startswith("DU"),
         "clock": {"is_open": clk.get("is_open") is True, "next_close": clk.get("next_close"),
                   "source": clk.get("source"), "as_of": clk.get("as_of")} if clk else None,
@@ -142,6 +149,7 @@ def ibkr_portfolio(d, meta):
                        "qty": abs(float(p["position"])), "price": float(p["mktPrice"]), "stop": None,
                        "currency": str(p.get("currency") or ccy).upper(), "multiplier": float(p.get("multiplier") or 1)}
                       for p in pos if float(p.get("position") or 0) != 0],
+        "positions_source": {"source": "ibkr:GET /portfolio/{accountId}/positions/0", "as_of": clk.get("as_of")},
         "today": _today(meta),
         "_broker_source": src.get("base_url"),
     }
