@@ -14,7 +14,8 @@ portfolio   see position_size.py; also "paper": true|false and, for EVERY check 
             "clock": {"is_open": true, "next_close": "...", "source": "alpaca:get_clock", "as_of": "..."}
             as_of is the broker clock's own timestamp; --now (default: this machine's time) must be within
             limits gate.clock_tolerance_s (default 120, max 300) of it, or the check fails CLOCK_DRIFT.
-            The drift is reported in "clock". A live check must also be within the tolerance of this
+            The drift is reported in "clock". The entry window (no_entries_before/after) and calendar
+            dates are read in limits.timezone (default America/New_York), whatever offset --now carries. A live check must also be within the tolerance of this
             machine's clock; a paper check may replay a recorded --now and gets a warning.
 contract    see data_contract.py; must contain a role "quote" series for this symbol
 bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","closed":true}
@@ -269,6 +270,9 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
     """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used).
     clock, when given, receives the T2 clock report (drift from the broker clock)."""
     R, warns = Reasons(), []
+    if tz is None:
+        raise ValueError("limits.timezone could not be loaded (zoneinfo/tzdata missing): the entry window needs it")
+    now = now.astimezone(tz)  # P3: entry window and calendar dates run on limits.timezone, not --now's offset
     rep = clock_anchor(L, pf, now, mode, R, warns)
     if clock is not None:
         clock.update(rep)
@@ -397,6 +401,9 @@ def _main() -> None:
         now = parse_ts(a.now) if a.now else datetime.now(tz)
         if now.tzinfo is None:
             raise ValueError("--now needs a UTC offset (e.g. -05:00): a naive time is ambiguous")
+        if tz is None:
+            raise ValueError("limits.timezone could not be loaded (zoneinfo/tzdata missing)")
+        now = now.astimezone(tz)  # P3
         clock: Dict[str, Any] = {}
         R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), ld(a.instrument), ld(a.bar),
                                           ld(a.context), now, tz, clock)
