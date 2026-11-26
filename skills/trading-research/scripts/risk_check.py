@@ -17,11 +17,17 @@ portfolio   see position_size.py; also "paper": true|false and, for EVERY check 
             The drift is reported in "clock". The entry window (no_entries_before/after) and calendar
             dates are read in limits.timezone (default America/New_York), whatever offset --now carries. A live check must also be within the tolerance of this
             machine's clock; a paper check may replay a recorded --now and gets a warning.
+            "settled_cash": base-currency cash that has settled (Alpaca non_marginable_buying_power, IBKR
+            settledcash). uses_margin is DERIVED (T3): a short, or a long whose notional exceeds
+            settled_cash, uses margin; with allow_margin false that is MARGIN_OFF, and a missing
+            settled_cash is NO_CASH. An exit needs "positions_source": {"source", "as_of"}, the broker
+            positions read, within the clock tolerance (EXIT_UNVERIFIED otherwise).
 contract    see data_contract.py; must contain a role "quote" series for this symbol
 bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","closed":true}
 
 Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
-              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "clock", "next"}
+              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "clock",
+              "margin", "next"}
 Asset class comes from the instrument spec and the symbol's shape, checked against the order's label
 (ASSET_CLASS, HARD, on any disagreement; see position_size.resolve_asset_class).
 reasons are "CODE: text". HARD codes can never be overridden; SOFT codes can, on paper only, with
@@ -214,6 +220,54 @@ def clock_anchor(L: Dict[str, Any], pf: Dict[str, Any], now: datetime, mode: str
     return rep
 
 
+def positions_verified(L: Dict[str, Any], pf: Dict[str, Any], now: datetime, R: "Reasons") -> None:
+    """T3: an exit trusts portfolio.positions only when they carry the broker read they came from, taken
+    within the clock tolerance of the gate clock."""
+    tol = float((L.get("gate") or {}).get("clock_tolerance_s", 120))
+    ps = pf.get("positions_source") or {}
+    if not ps.get("source") or not ps.get("as_of"):
+        R.add("EXIT_UNVERIFIED", "an exit needs portfolio.positions_source {source, as_of}: the broker positions "
+                                 "read (e.g. alpaca get_all_positions) the positions were copied from")
+        return
+    try:
+        t = parse_ts(ps["as_of"])
+        age = (now - t).total_seconds()
+    except (ValueError, TypeError):
+        R.add("EXIT_UNVERIFIED", "portfolio.positions_source.as_of needs ISO 8601 with a UTC offset")
+        return
+    if abs(age) > tol:
+        R.add("EXIT_UNVERIFIED", f"the positions read is {age:+.0f}s from the gate clock (tolerance {tol:.0f}s): "
+                                 "read the broker positions again")
+
+
+def margin_check(o: Dict[str, Any], side: str, qty: float, sizing: Dict[str, Any], pf: Dict[str, Any],
+                 L: Dict[str, Any], R: "Reasons") -> Dict[str, Any]:
+    """T3: uses_margin is derived, never taken from the order. A short entry always borrows; a long entry
+    borrows when its notional exceeds portfolio.settled_cash (base currency, cash that has settled)."""
+    notional = qty * float(sizing.get("notional_per_unit") or 0)
+    sc = pf.get("settled_cash")
+    rep: Dict[str, Any] = {"order_notional": round(notional, 2), "settled_cash": sc, "declared": o.get("uses_margin")}
+    try:
+        scf = None if sc is None else float(sc)
+        if scf is not None and not (math.isfinite(scf) and scf >= 0):
+            raise ValueError
+    except (TypeError, ValueError):
+        R.add("NO_CASH", "portfolio.settled_cash must be a finite number >= 0")
+        return rep
+    derived = side == "short" or (scf is not None and notional > scf + 1e-9)
+    rep["uses_margin"] = bool(derived or o.get("uses_margin")) if scf is not None or side == "short" else None
+    if L.get("allow_margin"):
+        return rep
+    if scf is None and side != "short":
+        R.add("NO_CASH", "margin is off: portfolio.settled_cash (from the broker account) is required to prove "
+                         "this order is paid in settled cash")
+    elif derived and not o.get("uses_margin"):
+        why = "a short sale borrows" if side == "short" else \
+            f"order notional {notional:.2f} exceeds settled cash {scf:.2f}"
+        R.add("MARGIN_OFF", f"margin disabled in limits and {why}")
+    return rep
+
+
 class Reasons:
     def __init__(self) -> None:
         self.items: List[Tuple[str, str]] = []
@@ -266,9 +320,10 @@ def session_gates(L: Dict[str, Any], spec_session: str, pf: Dict[str, Any], now:
 
 def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str, contract: Optional[Dict[str, Any]],
              instrument: Optional[Dict[str, Any]], bar: Optional[Dict[str, Any]], context: Optional[Dict[str, Any]],
-             now: datetime, tz: Any, clock: Optional[Dict[str, Any]] = None) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
+             now: datetime, tz: Any, clock: Optional[Dict[str, Any]] = None,
+             margin: Optional[Dict[str, Any]] = None) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
     """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used).
-    clock, when given, receives the T2 clock report (drift from the broker clock)."""
+    clock, when given, receives the T2 clock report (drift from the broker clock); margin the T3 report."""
     R, warns = Reasons(), []
     if tz is None:
         raise ValueError("limits.timezone could not be loaded (zoneinfo/tzdata missing): the entry window needs it")
@@ -313,6 +368,7 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
     if ac_problems:
         return R, warns, sizing, used
     if exit_:
+        positions_verified(L, pf, now, R)
         check_exit(o, pf, R)
         warns.append("exit order: entry limits are not applied to a verified reduce-only exit")
         return R, warns, sizing, used
@@ -361,6 +417,9 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
         R.add("SIZING_INPUT", str(e))
         return R, warns, sizing, used
     session_gates(L, sizing["session"], pf, now, R)
+    mrep = margin_check(o, side, qty, sizing, pf, L, R)
+    if margin is not None:
+        margin.update(mrep)
     for r in sizing.get("reasons", []):
         code = "MIN_ORDER" if "min_order" in r else "RISK_LIMIT"
         R.add(code, r)
@@ -405,8 +464,9 @@ def _main() -> None:
             raise ValueError("limits.timezone could not be loaded (zoneinfo/tzdata missing)")
         now = now.astimezone(tz)  # P3
         clock: Dict[str, Any] = {}
+        margin: Dict[str, Any] = {}
         R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), ld(a.instrument), ld(a.bar),
-                                          ld(a.context), now, tz, clock)
+                                          ld(a.context), now, tz, clock, margin)
     except (OSError, ValueError, KeyError, TypeError) as e:
         print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
     reasons, fp, override = R.strings(), fingerprint(o), None
@@ -428,7 +488,7 @@ def _main() -> None:
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
            "nonce": nonce, "mode": a.mode, "fingerprint": fp, "warnings": warns, "override": override,
-           "checked_at": now.isoformat(), "clock": clock,
+           "checked_at": now.isoformat(), "clock": clock, "margin": margin,
            "next": ("Do not place this order. " + reasons[0] if verdict == "FAIL" else
                     "Override logged. Preview with --allow-override; the preview prints OVERRIDE." if verdict == "OVERRIDE" else
                     "Show preview.py output with this nonce, then get the user's yes for this exact order.")}
