@@ -1,0 +1,18 @@
+{
+ "id": "REDACTED",
+ "account_number": "REDACTED",
+ "status": "ACTIVE",
+ "currency": "USD",
+ "cash": "25000",
+ "portfolio_value": "25000",
+ "equity": "25000",
+ "last_equity": "25000",
+ "buying_power": "100000",
+ "regt_buying_power": "50000",
+ "daytrading_buying_power": "100000",
+ "non_marginable_buying_power": "20000",
+ "multiplier": "4",
+ "pattern_day_trader": false,
+ "trading_blocked": false,
+ "account_blocked": false
+}
