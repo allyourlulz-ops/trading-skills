@@ -135,6 +135,18 @@ def timing_gates(L, o, c, now, blocks, warns):
         if corr is not None and b5 is not None and corr >= G.get("btc_corr_min", 0.7) and b5 <= G.get("btc_drawdown_5d_pct", -10):
             warns.append(f"BTC down {b5}% in 5 days and this coin's 30-day correlation is {corr}")
             mult *= G.get("btc_drag_multiplier", 0.7)
+    of = c.get("orderflow") or {}
+    if ac == "crypto" and of:
+        if of.get("warming_up") or (of.get("stream_age_s") is not None and of["stream_age_s"] < G.get("orderflow_min_stream_s", 60)):
+            warns.append("orderflow context ignored: the stream is still warming up")
+        else:
+            if of.get("liq_cascade"):
+                blocks.append("liquidation cascade flagged on %s: no new crypto entries until it clears" % o.get("symbol"))
+            f8 = of.get("funding_8h_pct")
+            lim = G.get("funding_8h_extreme_pct", 0.1)
+            if f8 is not None and ((o["side"] == "buy" and f8 >= lim) or (o["side"] == "sell" and f8 <= -lim)):
+                warns.append(f"funding {f8}%/8h: this side is the crowded one and pays to hold")
+                mult *= G.get("funding_crowded_multiplier", 0.8)
     return max(mult, floor) if mult < 1 else 1.0
 
 
