@@ -304,8 +304,10 @@ def T3_control_verified_exit_passes(e):
 MANDATE = jl(os.path.join(SKILL, "assets", "mandate.example.json"))
 
 
-def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, now=NOW, extra=()):
-    """risk_check this order, then mandate.py check it. Returns (exit, out, risk_out)."""
+def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, now=NOW, extra=(), reconcile=None,
+                  after_reconcile=None):
+    """risk_check this order, optionally mandate.py reconcile (reconcile = {"fills": [...], "account": {...}}),
+    then mandate.py check it. Returns (exit, out, risk_out)."""
     lim = LIMITS if limits is None else limits
     ex, risk = e.rc(order=order, limits=lim, **(rc_kw or {}))
     rp = e.write(risk, "risk.json")
@@ -316,6 +318,14 @@ def mandate_check(e, order, mandate=None, ledger=(), rc_kw=None, limits=None, no
     with open(lp, "w") as f:
         for r in ledger:
             f.write(json.dumps(r) + "\n")
+    if reconcile is not None:
+        rargs = ["reconcile", "--broker", e.write(reconcile.get("fills", []), "fills.json"), "--ledger", lp,
+                 "--mandate", mp, "--gate-dir", e.gate]
+        if reconcile.get("account") is not None:
+            rargs += ["--account", e.write(reconcile["account"], "account.json")]
+        e.last_reconcile = e.run("mandate.py", *rargs)
+    if after_reconcile:
+        after_reconcile(mp, lp)
     args = ["check", "--order", e.write(order), "--risk", rp, "--mandate", mp, "--ledger", lp,
             "--gate-dir", e.gate, "--limits", e.write(lim, "limits_m.json")]
     if now:
@@ -399,6 +409,57 @@ def T4_control_whitelisted_overrides_pass(e):
     inst = {"asset_class": "equity", "currency": "USD", "lot_step": 0.001, "min_qty": 0.001, "gap_pct": 0.06,
             "cluster": "us_megacap_tech", "multiplier": 1, "session": "exchange", "source": "alpaca:get_asset"}
     return passed(e.rc(instrument=inst))
+
+
+# ---------------------------------------------------------------- T5 reconcile before any entry
+ENTRY = dict(ORDER, qty=5, client_order_id="m-aapl-1", strategy="ema9-pullback-v2")
+ACCOUNT = {"equity": "25000", "cash": "20000", "currency": "USD"}   # Alpaca GET /v2/account shape
+RECONCILED = {"fills": [], "account": ACCOUNT}
+
+
+@test
+def T5_entry_without_a_reconcile_needs_yes(e):
+    mx, out, risk = mandate_check(e, ENTRY)
+    return risk.get("verdict") == "pass" and out.get("verdict") != "AUTO_OK" and \
+        any("reconcile" in r for r in out.get("reasons", []))
+
+
+@test
+def T5_ledger_changed_since_the_reconcile_needs_yes(e):
+    def add_row(mp, lp):
+        with open(lp, "a") as f:
+            f.write(json.dumps({"ts": NOW, "mandate_id": MANDATE["id"], "client_order_id": "x", "symbol": "SPY",
+                                "side": "buy", "qty": 1, "price": 600, "notional": 600, "is_exit": False}) + "\n")
+    mx, out, risk = mandate_check(e, ENTRY, reconcile=RECONCILED, after_reconcile=add_row)
+    return out.get("verdict") != "AUTO_OK" and any("since the last reconcile" in r for r in out.get("reasons", []))
+
+
+@test
+def T5_unreconciled_equity_halts(e):
+    mx, out, risk = mandate_check(e, ENTRY, reconcile={"fills": [], "account": dict(ACCOUNT, equity="12000")})
+    return out.get("verdict") == "HALT" and any("equity" in r for r in out.get("reasons", []))
+
+
+@test
+def T5_reconcile_without_the_account_needs_yes(e):
+    mx, out, risk = mandate_check(e, ENTRY, reconcile={"fills": []})
+    return out.get("verdict") != "AUTO_OK" and any("equity" in r for r in out.get("reasons", []))
+
+
+@test
+def T5_tampered_reconcile_stamp_halts(e):
+    def tamper(mp, lp):
+        p = lp + ".reconcile.json"
+        d = json.load(open(p)); d["equity"] = 25000.0; d["verdict"] = "MATCHED"; d["ledger_sha256"] = "0" * 64
+        json.dump(d, open(p, "w"))
+    mx, out, risk = mandate_check(e, ENTRY, reconcile=RECONCILED, after_reconcile=tamper)
+    return out.get("verdict") == "HALT" and any("reconcile" in r for r in out.get("reasons", []))
+
+
+@test
+def T5_control_reconciled_entry_is_auto_ok(e):
+    mx, out, risk = mandate_check(e, ENTRY, reconcile=RECONCILED)
+    return mx == 0 and out.get("verdict") == "AUTO_OK"
 
 
 def main():
