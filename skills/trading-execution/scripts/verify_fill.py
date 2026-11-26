@@ -12,7 +12,7 @@ fill.json  the broker's own order object after the fill (Alpaca GET /v2/orders/{
 
 MATCH (exit 0) only if all of these hold; anything else is HALT (exit 2), including bad or missing input:
   the nonce's MAC is valid for this gate key, it is in gate-log.jsonl, preview.py consumed it, and no fill was
-  verified for it before; the order file still has the checked fingerprint (order + limits contents); the
+  verified for it before (a PARTIAL fill may be re-verified as it grows, never as it shrinks); the order file still has the checked fingerprint (order + limits contents); the
   fill's client_order_id, symbol and side are the order's; 0 < filled_qty <= the checked qty; a limit buy
   filled at or under its limit (a sell at or over); a market order within --market-tol-bps of est_price;
   the fill's type and limit price, when reported, are the order's; its asset class maps to the one
@@ -66,8 +66,13 @@ def check(nonce, o, f, limits, d, a):
     used = [r for r in log if r.get("nonce") == nonce and r.get("event") == "used"]
     if not used:
         why.append("nonce was never consumed by preview.py: this order skipped the preview")
-    if any(r.get("nonce") == nonce and r.get("event") in ("fill_verified", "fill_halt") for r in log):
-        why.append("a fill was already verified for this nonce: one nonce, one order")
+    prior = [r for r in log if r.get("nonce") == nonce and r.get("event") in ("fill_verified", "fill_halt")]
+    q_now = _f(f.get("filled_qty")) or 0.0
+    if any(r.get("event") == "fill_halt" or not r.get("partial") for r in prior):
+        why.append("a fill was already verified (or halted) for this nonce: one nonce, one order")
+    elif prior and q_now < max(float(r.get("filled_qty") or 0) for r in prior) - 1e-12:
+        why.append("filled qty %g is below the %g verified earlier for this nonce" %
+                   (q_now, max(float(r.get("filled_qty") or 0) for r in prior)))
     if t["verdict"] == "FAIL":
         why.append("the nonce's verdict is FAIL: this order should never have been sent")
     if fingerprint(o, file_sha256(limits)) != t["fp"]:
