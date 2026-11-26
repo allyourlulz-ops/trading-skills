@@ -3,6 +3,7 @@
  "base_currency": "USD",
  "equity": 25000,
  "buying_power": 1500,
+ "settled_cash": 1500,
  "paper": true,
  "clock": {
   "is_open": true,
