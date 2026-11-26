@@ -1,0 +1,15 @@
+[
+ {
+  "id": "DU-REDACTED",
+  "accountId": "DU-REDACTED",
+  "accountVan": "DU-REDACTED",
+  "accountTitle": "REDACTED",
+  "displayName": "DU-REDACTED",
+  "accountAlias": null,
+  "currency": "CAD",
+  "type": "DEMO",
+  "tradingType": "STKCASH",
+  "covestor": false,
+  "parent": {}
+ }
+]
