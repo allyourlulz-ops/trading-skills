@@ -83,3 +83,6 @@ Before a new entry, pull a small context from the data MCP server (earnings cale
 - **Crypto BTC drag:** BTC down 10%+ in 5 days and the coin's 30-day correlation with BTC ≥ 0.7 → size ×0.7.
 Multipliers compound, floor 0.25, and can only shrink a trade. Exits are never blocked by these gates. Thresholds are heuristics from udiedrichsen/stock-analysis, not backtested; test them with permutation_test.py before trusting them as signals.
 
+
+## Crypto order-flow context
+risk_check reads an optional `orderflow` block in `--context` (from the read-only order-flow MCP; see trading-research references/mcp-servers.md): a liquidation cascade blocks new crypto entries, crowded funding on the order's side cuts size, and a stream still warming up is ignored. Thresholds sit under `timing` in risk-limits.json.
