@@ -3,6 +3,7 @@
  "base_currency": "USD",
  "equity": 25000,
  "buying_power": 20000,
+ "settled_cash": 20000,
  "paper": true,
  "clock": {
   "is_open": true,
@@ -24,5 +25,9 @@
   "orders": 0,
   "realized_pnl": 0,
   "planned_loss": 0
+ },
+ "positions_source": {
+  "source": "alpaca:get_all_positions",
+  "as_of": "2026-11-25T10:30:00-05:00"
  }
 }
