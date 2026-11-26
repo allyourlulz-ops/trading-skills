@@ -1,0 +1,10 @@
+{
+ "synthetic": true,
+ "now": "2026-11-25T10:30:00-05:00",
+ "mode": "paper",
+ "limits": "limits.json",
+ "contract": "contract.json",
+ "server": "alpaca",
+ "description": "SYNTHETIC. Paper AAPL buy, 52 shares, sized exactly at the position cap: risk_check PASS, preview OPEN, simulated fill.",
+ "expect": "PASS"
+}
