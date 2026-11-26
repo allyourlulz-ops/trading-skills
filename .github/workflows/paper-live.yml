@@ -1,0 +1,60 @@
+name: paper-live
+# Manual only. Records fresh, real responses from the Alpaca PAPER API with read-only GETs
+# (/v2/account, /v2/clock, /v2/positions) and replays them through repro.py. It places no orders:
+# record_alpaca.py has no order call and refuses any host other than https://paper-api.alpaca.markets.
+# account_number and id are redacted before anything is written. Nothing is committed back.
+on:
+  workflow_dispatch:
+    inputs:
+      upload_artifact:
+        description: "Upload the redacted recordings and expected.json as a run artifact (visible to repo readers)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  record-and-replay:
+    runs-on: ubuntu-22.04
+    env:
+      APCA_API_KEY_ID: ${{ secrets.ALPACA_PAPER_KEY }}
+      APCA_API_SECRET_KEY: ${{ secrets.ALPACA_PAPER_SECRET }}
+      FIXTURE: skills/trading-execution/evals/repro/paper-broker/alpaca_paper_account
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Paper secrets are set
+        run: |
+          test -n "$APCA_API_KEY_ID" || { echo "secret ALPACA_PAPER_KEY is not set"; exit 1; }
+          test -n "$APCA_API_SECRET_KEY" || { echo "secret ALPACA_PAPER_SECRET is not set"; exit 1; }
+      - name: Record account, clock and positions (GET only, paper host only)
+        run: python skills/trading-execution/evals/record_alpaca.py --base-url https://paper-api.alpaca.markets --out "$FIXTURE/alpaca"
+      - name: Redaction check
+        run: |
+          python - <<'PY'
+          import json, os
+          a = json.load(open(os.environ["FIXTURE"] + "/alpaca/account.json"))
+          assert a.get("account_number") in (None, "REDACTED") and a.get("id") in (None, "REDACTED"), "not redacted"
+          print("redacted: ok")
+          PY
+      - name: Replay through the place-it path
+        run: |
+          python skills/trading-execution/evals/repro.py "$FIXTURE" --require-recorded --bless
+          python skills/trading-execution/evals/repro.py "$FIXTURE" --require-recorded
+          python - <<'PY'
+          import json, os
+          e = json.load(open(os.environ["FIXTURE"] + "/expected.json"))
+          print("portfolio paper:", e["portfolio"]["paper"], "| clock open:", e["portfolio"]["clock"]["is_open"])
+          print("risk_check:", e["risk_check"]["out"].get("verdict"), e["risk_check"]["out"].get("reasons"))
+          print("preview:", e["preview"]["out"].get("gate"), e["preview"]["out"].get("preview_first_line"))
+          PY
+      - name: Upload redacted recordings
+        if: ${{ inputs.upload_artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpaca-paper-recording
+          path: |
+            ${{ env.FIXTURE }}/alpaca/
+            ${{ env.FIXTURE }}/expected.json
+          retention-days: 7
