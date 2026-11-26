@@ -10,13 +10,17 @@ Usage
 order.json  {"symbol":"AAPL","side":"buy","qty":12,"type":"limit","limit_price":190.0,"stop_price":185.0,
              "target_price":205.0,"time_in_force":"day","asset_class":"equity","is_exit":false,
              "risk_pct":2}                       # risk_pct / risk_amount optional: the user's requested risk
-portfolio   see position_size.py; also "paper": true|false and, for exchange sessions,
+portfolio   see position_size.py; also "paper": true|false and, for EVERY check (T2),
             "clock": {"is_open": true, "next_close": "...", "source": "alpaca:get_clock", "as_of": "..."}
+            as_of is the broker clock's own timestamp; --now (default: this machine's time) must be within
+            limits gate.clock_tolerance_s (default 120, max 300) of it, or the check fails CLOCK_DRIFT.
+            The drift is reported in "clock". A live check must also be within the tolerance of this
+            machine's clock; a paper check may replay a recorded --now and gets a warning.
 contract    see data_contract.py; must contain a role "quote" series for this symbol
 bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","closed":true}
 
 Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
-              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "next"}
+              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "clock", "next"}
 Asset class comes from the instrument spec and the symbol's shape, checked against the order's label
 (ASSET_CLASS, HARD, on any disagreement; see position_size.resolve_asset_class).
 reasons are "CODE: text". HARD codes can never be overridden; SOFT codes can, on paper only, with
@@ -28,7 +32,7 @@ Exit codes: 0 pass, 1 fail, 2 bad input. Every outcome, including bad input, get
 """
 from __future__ import annotations
 
-import argparse, json, math, os, sys
+import argparse, json, math, os, re, sys, time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 try:
@@ -43,6 +47,7 @@ from position_size import SizingError, resolve_asset_class, size  # noqa: E402
 from data_contract import check as contract_check  # noqa: E402
 
 DEFAULT_LIMITS = os.path.join(HERE, "..", "assets", "risk-limits.json")
+MAX_CLOCK_TOLERANCE_S = 300  # never wider than the nonce TTL cap
 SOFT = {"ENTRY_WINDOW", "TRADES_PER_DAY", "ORDERS_PER_DAY", "REWARD_RISK", "TIMING", "MIN_ORDER"}
 
 
@@ -163,6 +168,51 @@ def timing_gates(L, o, c, now, blocks, warns):
     return max(mult, floor) if mult < 1 else 1.0
 
 
+def parse_ts(ts: Any) -> datetime:
+    """ISO 8601 with Z and broker nanoseconds accepted (Python 3.9 reads at most 6 fractional digits)."""
+    return datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", str(ts).replace("Z", "+00:00")))
+
+
+def clock_anchor(L: Dict[str, Any], pf: Dict[str, Any], now: datetime, mode: str, R: "Reasons",
+                 warns: List[str]) -> Dict[str, Any]:
+    """T2: the gate's clock must agree with the broker's. --now (or this machine's time) is accepted only
+    within gate.clock_tolerance_s of portfolio.clock.as_of, the timestamp the broker's clock call returned.
+    The drift is reported. A live check must also be within the tolerance of this machine's clock; a paper
+    check may replay a recorded time (golden fixtures, repro) and says so in a warning."""
+    tol = float((L.get("gate") or {}).get("clock_tolerance_s", 120))
+    clk = pf.get("clock") or {}
+    rep: Dict[str, Any] = {"now": now.isoformat(), "broker_as_of": clk.get("as_of"), "source": clk.get("source"),
+                           "tolerance_s": tol if tol != int(tol) else int(tol)}
+    if not (0 < tol <= MAX_CLOCK_TOLERANCE_S):
+        R.add("NO_CLOCK", f"limits gate.clock_tolerance_s must be in (0, {MAX_CLOCK_TOLERANCE_S}]")
+        return rep
+    if not clk.get("source") or not clk.get("as_of"):
+        R.add("NO_CLOCK", "every check needs portfolio.clock {as_of, source}: the timestamp the broker's clock "
+                          "call returned (Alpaca get_clock), which anchors --now")
+        return rep
+    try:
+        b = parse_ts(clk["as_of"])
+    except ValueError:
+        R.add("NO_CLOCK", "portfolio.clock.as_of is not ISO 8601")
+        return rep
+    if b.tzinfo is None:
+        R.add("NO_CLOCK", "portfolio.clock.as_of needs a UTC offset")
+        return rep
+    drift = (now - b).total_seconds()
+    rep["drift_s"] = round(drift, 3) if drift != int(drift) else int(drift)
+    if abs(drift) > tol:
+        R.add("CLOCK_DRIFT", f"the gate clock is {drift:+.0f}s from the broker clock ({clk['source']}); "
+                             f"tolerance {tol:.0f}s. Read the clock again and pass its time")
+    sysd = now.timestamp() - time.time()
+    rep["system_drift_s"] = round(sysd, 1)
+    if abs(sysd) > tol:
+        if mode == "live":
+            R.add("CLOCK_DRIFT", f"live check: --now is {sysd:+.0f}s from this machine's clock; tolerance {tol:.0f}s")
+        else:
+            warns.append("paper replay: --now is outside the tolerance of this machine's clock (allowed on paper only)")
+    return rep
+
+
 class Reasons:
     def __init__(self) -> None:
         self.items: List[Tuple[str, str]] = []
@@ -215,9 +265,13 @@ def session_gates(L: Dict[str, Any], spec_session: str, pf: Dict[str, Any], now:
 
 def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str, contract: Optional[Dict[str, Any]],
              instrument: Optional[Dict[str, Any]], bar: Optional[Dict[str, Any]], context: Optional[Dict[str, Any]],
-             now: datetime, tz: Any) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
-    """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used)."""
+             now: datetime, tz: Any, clock: Optional[Dict[str, Any]] = None) -> Tuple[Reasons, List[str], Dict[str, Any], Dict[str, Any]]:
+    """Pure apart from the clock passed in. Returns (reasons, warnings, sizing, limits_used).
+    clock, when given, receives the T2 clock report (drift from the broker clock)."""
     R, warns = Reasons(), []
+    rep = clock_anchor(L, pf, now, mode, R, warns)
+    if clock is not None:
+        clock.update(rep)
     sym = str(o["symbol"]).upper()
     s = side_of(o)
     qty = float(o["qty"])
@@ -340,11 +394,12 @@ def _main() -> None:
     try:
         L, o, pf = ld(a.limits), ld(a.order), ld(a.portfolio)
         tz = ZoneInfo(L.get("timezone", "America/New_York")) if ZoneInfo else None
-        now = datetime.fromisoformat(a.now) if a.now else datetime.now(tz)
-        if now.tzinfo is None and tz is not None:
-            now = now.replace(tzinfo=tz)
+        now = parse_ts(a.now) if a.now else datetime.now(tz)
+        if now.tzinfo is None:
+            raise ValueError("--now needs a UTC offset (e.g. -05:00): a naive time is ambiguous")
+        clock: Dict[str, Any] = {}
         R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), ld(a.instrument), ld(a.bar),
-                                          ld(a.context), now, tz)
+                                          ld(a.context), now, tz, clock)
     except (OSError, ValueError, KeyError, TypeError) as e:
         print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
     reasons, fp, override = R.strings(), fingerprint(o), None
@@ -366,7 +421,7 @@ def _main() -> None:
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
            "nonce": nonce, "mode": a.mode, "fingerprint": fp, "warnings": warns, "override": override,
-           "checked_at": now.isoformat(),
+           "checked_at": now.isoformat(), "clock": clock,
            "next": ("Do not place this order. " + reasons[0] if verdict == "FAIL" else
                     "Override logged. Preview with --allow-override; the preview prints OVERRIDE." if verdict == "OVERRIDE" else
                     "Show preview.py output with this nonce, then get the user's yes for this exact order.")}
