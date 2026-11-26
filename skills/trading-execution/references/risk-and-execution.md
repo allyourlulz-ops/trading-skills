@@ -85,4 +85,4 @@ Multipliers compound, floor 0.25, and can only shrink a trade. Exits are never b
 
 
 ## Crypto order-flow context
-risk_check reads an optional `orderflow` block in `--context` (from the read-only order-flow MCP; see trading-research references/mcp-servers.md): a liquidation cascade blocks new crypto entries, crowded funding on the order's side cuts size, and a stream still warming up is ignored. Thresholds sit under `timing` in risk-limits.json.
+risk_check reads an optional `orderflow` block in `--context` (from the read-only order-flow MCP; see trading-research references/mcp-servers.md): a liquidation cascade blocks new crypto entries, extreme funding paid by the order's side cuts size (holding cost and squeeze/liquidation tail, not a return signal; skipped when `crosses_settlement` is false, off with `timing.funding_gate_mode: "off"`), and a stream still warming up is ignored. Thresholds sit under `timing` in risk-limits.json.

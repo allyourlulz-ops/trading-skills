@@ -2,7 +2,7 @@
 
 Two agent skills (skills.sh / Agent Skills format) for evidence-first trading research over MCP, built so an agent cannot plausibly talk itself into a bad trade. `trading-research` analyses, sizes and validates; it has no order tools. `trading-execution` (optional) places paper or live orders behind a nonce-enforced risk gate and your approval. Target markets: US and Canadian stocks and ETFs, spot crypto. Execution broker: Alpaca (paper by default); Questrade and IBKR draft orders you approve in their own apps.
 
-Current version: trading-research 2.1.0, trading-execution 2.1.0. No strategy here is shown to have an edge. These are tools for finding out honestly.
+Current version: trading-research 2.1.1, trading-execution 2.1.1. No strategy here is shown to have an edge. These are tools for finding out honestly.
 
 ## Install
 ```bash

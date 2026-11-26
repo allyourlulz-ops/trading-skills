@@ -142,11 +142,22 @@ def timing_gates(L, o, c, now, blocks, warns):
         else:
             if of.get("liq_cascade"):
                 blocks.append("liquidation cascade flagged on %s: no new crypto entries until it clears" % o.get("symbol"))
+            # Funding is a holding cost and a leverage/squeeze tail marker, NOT a return signal:
+            # raw funding measures retail orientation/carry, not crowding, and since 2024 high funding
+            # preceded short-horizon continuation (OctopusTakopi/funding-rate-alpha, MIT, s.4-8, 14).
             f8 = of.get("funding_8h_pct")
             lim = G.get("funding_8h_extreme_pct", 0.1)
-            if f8 is not None and ((o["side"] == "buy" and f8 >= lim) or (o["side"] == "sell" and f8 <= -lim)):
-                warns.append(f"funding {f8}%/8h: this side is the crowded one and pays to hold")
-                mult *= G.get("funding_crowded_multiplier", 0.8)
+            mode = G.get("funding_gate_mode", "cost_risk")  # "cost_risk" | "off"
+            pays = f8 is not None and ((o["side"] == "buy" and f8 >= lim) or (o["side"] == "sell" and f8 <= -lim))
+            payer = "longs" if o["side"] == "buy" else "shorts"
+            if pays and of.get("crosses_settlement") is False:  # funding is charged only at settlement
+                warns.append(f"funding {f8}%/8h ignored: the planned hold crosses no settlement")
+            elif pays and mode != "off":
+                ann = abs(f8) * 3 * 365
+                warns.append(f"funding {f8}%/8h (~{ann:.0f}%/yr) is paid by this side ({payer}): carry cost "
+                             f"~{abs(f8) * 300:.0f} bps/day and squeeze/liquidation tail; size dampened "
+                             "(cost/risk control, not a return forecast)")
+                mult *= G.get("funding_cost_multiplier", G.get("funding_crowded_multiplier", 0.8))
     return max(mult, floor) if mult < 1 else 1.0
 
 
