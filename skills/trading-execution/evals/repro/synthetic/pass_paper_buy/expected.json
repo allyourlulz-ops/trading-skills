@@ -151,5 +151,10 @@
    ]
   }
  },
- "synthetic": true
+ "synthetic": true,
+ "verify_fill": {
+  "exit": 0,
+  "reasons": [],
+  "verdict": "MATCH"
+ }
 }
