@@ -1,0 +1,6 @@
+{
+ "synthetic": true,
+ "recorded": false,
+ "base_url": "https://localhost:5000/v1/api",
+ "note": "hand-written; shape only; conid values are placeholders"
+}
