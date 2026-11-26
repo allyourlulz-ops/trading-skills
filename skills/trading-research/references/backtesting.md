@@ -159,3 +159,10 @@ For an intraday plan: build a pool of the last 60 days of 5-min sessions as OHLC
 
 ## Positive controls (evals/benchmark_suite.md)
 The gates are checked against strategies with known answers: noise must fail, a strong premium at 3× costs must pass, a leak must be caught, a SPY clone must read BETA_OR_STYLE, and a market-neutral Sharpe 1.6 sleeve must pass without beating SPY. If any lands wrong, the gates are miscalibrated; fix them before trusting a verdict. `evals/run_tests.py` runs the suite.
+
+## Adversarial A/B (method from figgie-bot, MIT; no code taken)
+RasmusCodes/figgie-bot tests a Figgie card-game bot. Three habits carry over to any bot change:
+1. Paired A/B: run the old and new version on the same bars, fills and seeds, and report the paired difference with its 95% interval. Call a change better only when the interval clears zero.
+2. An adversary arena: alongside normal data, test against data built to fool the signal (a spoofed print that is pulled before it fills, wash-traded volume, a fake breakout that reverses). A signal that only wins when nobody lies to it is fragile.
+3. Seeds in three disjoint ranges: tune on train, choose on validation, report once on holdout. A parameter that wins on train but loses its worst quarter of validation stays at the old value.
+Spoof resistance for order-flow signals: count a wall, a big bid or a block print only after it has stood across two separate snapshots or traded, never on one sighting.
