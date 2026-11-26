@@ -67,6 +67,11 @@ r = subprocess.run([sys.executable, os.path.join(HERE, "repro.py"), "--all"], ca
 print(r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[-300:])
 if r.returncode:
     print(r.stdout + r.stderr[-500:]); fails.append("repro")
+# trust boundary (Phase 1, T1-T9): each forged agent-written input must fail closed
+t = subprocess.run([sys.executable, os.path.join(HERE, "trust_tests.py")], capture_output=True, text=True)
+print(t.stdout.strip().splitlines()[-1] if t.stdout.strip() else t.stderr[-300:])
+if t.returncode:
+    print(t.stdout + t.stderr[-500:]); fails.append("trust")
 # record_alpaca: paper host only, keys from env only (no network is touched by these checks)
 sys.path.insert(0, HERE)
 import record_alpaca as _ra
