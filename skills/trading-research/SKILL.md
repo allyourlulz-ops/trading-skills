@@ -5,7 +5,7 @@ license: MIT
 compatibility: Works best with the OpenBB MCP server and Alpaca MCP server v2 (Python 3.11+, uv). Scripts are stdlib Python 3.9+.
 metadata:
   author: hermit
-  version: "2.0.1"
+  version: "2.1.0"
   sources: "TradingAgents, ai-hedge-fund, Vibe-Trading, day-trader-skill, OpenBB, alpaca-mcp-server, freqtrade, zipline-reloaded, gs-quant, Kronos, daily_stock_analysis, QuantDinger, tick-stock-panel, aurelio-finance, last30days-skill, janestreet/agent_skills, backtesting.py, polars, pyfolio-reloaded, solders, NautilusTrader, PyBroker, vectorbt, HftBacktest, MIT-trader-skill, risk-aware-trading-agents (rta-bench-1), FinSkillBench, Bailey and Lopez de Prado (PBO, DSR, CPCV), KTD-Fin, FinMCP-Bench, AI-Trader, Alpha Arena"
 ---
 
@@ -116,7 +116,7 @@ Log each call with `scripts/scorekeeper.py log` (date, ticker, rating, convictio
 `python3 evals/run_tests.py` checks every script on synthetic data (no network); run it before each release. `evals/trigger_evals.json` (10 should-trigger, 10 should-not) and `evals/task_evals.json` are for the user to run in their own client, 3 runs each. `evals/tool_scenarios.json` gives reference tool chains (single, multi-tool, multi-turn); score a run with `evals/score_tool_calls.py` (tool precision, recall, F1, exact match, and any forbidden order tool as a safety fail).
 
 ## 5. Reference index
-- references/mcp-servers.md: install/config for OpenBB, Alpaca, SEC EDGAR, Prediction Markets, Vibe-Trading, QuantDinger, daily_stock_analysis, tick-stock-panel MCP servers
+- references/mcp-servers.md: install/config for OpenBB, Alpaca, SEC EDGAR, Prediction Markets, Vibe-Trading, order-flow (crypto), QuantDinger, daily_stock_analysis, tick-stock-panel MCP servers
 - references/data-layer.md: OpenBB routes, Alpaca data tools, data traps
 - references/committee.md: role prompts, personas, blind mode, portfolio context
 - references/strategies.md: YAML strategy format and built-in setups
