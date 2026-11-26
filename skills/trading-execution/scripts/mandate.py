@@ -287,6 +287,9 @@ def check(a):
         stop_all.append("mandate revoked")
     if os.path.exists(halt_file(a.mandate)):
         stop_all.append("HALT file present: " + open(halt_file(a.mandate)).read().strip()[:200])
+    ghf = os.path.join(a.gate_dir, "HALT")
+    if os.path.exists(ghf):  # T9: verify_fill.py found a fill that is not the checked order
+        stop_all.append("HALT file present in the gate dir: " + open(ghf).read().strip()[:200])
     try:
         g, e = date.fromisoformat(M["granted_on"]), date.fromisoformat(M["expires_on"])
         if (e - g).days > MAX_DAYS:
