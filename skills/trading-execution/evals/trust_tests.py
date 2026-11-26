@@ -754,6 +754,21 @@ def T9_control_partial_fill_is_a_match(e):
 
 
 @test
+def T9_control_a_partial_fill_can_be_reverified_as_it_grows(e):
+    n, op, lp = placed(e)
+    a = verify_fill(e, fill_of(ORDER, filled_qty="20", status="partially_filled"), n, op, lp)
+    b = verify_fill(e, fill_of(ORDER), n, op, lp)
+    return a[0] == 0 and b[0] == 0 and b[1].get("verdict") == "MATCH" and b[1].get("partial") is False
+
+
+@test
+def T9_a_shrinking_fill_halts(e):
+    n, op, lp = placed(e)
+    a = verify_fill(e, fill_of(ORDER, filled_qty="30", status="partially_filled"), n, op, lp)
+    return a[0] == 0 and halted(verify_fill(e, fill_of(ORDER, filled_qty="20", status="partially_filled"), n, op, lp), e)
+
+
+@test
 def T9_fill_qty_over_the_order_halts(e):
     n, op, lp = placed(e)
     return halted(verify_fill(e, fill_of(ORDER, filled_qty="60"), n, op, lp), e, "qty")
