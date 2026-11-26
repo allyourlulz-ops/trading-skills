@@ -50,7 +50,7 @@ except ImportError:  # py<3.9
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from gate import OVERRIDE_ACK, fingerprint, issue  # noqa: E402
-from position_size import SizingError, resolve_asset_class, size  # noqa: E402
+from position_size import InstrumentError, SizingError, resolve_asset_class, size  # noqa: E402
 from data_contract import check as contract_check  # noqa: E402
 
 DEFAULT_LIMITS = os.path.join(HERE, "..", "assets", "risk-limits.json")
@@ -414,7 +414,7 @@ def evaluate(o: Dict[str, Any], pf: Dict[str, Any], L: Dict[str, Any], mode: str
         sizing = size(sym, side, px, None if stop is None else float(stop), pf, L, ac, instrument,
                       o.get("risk_pct"), o.get("risk_amount"), o.get("target_price"), mult)
     except SizingError as e:
-        R.add("SIZING_INPUT", str(e))
+        R.add("INSTRUMENT" if isinstance(e, InstrumentError) else "SIZING_INPUT", str(e))
         return R, warns, sizing, used
     session_gates(L, sizing["session"], pf, now, R)
     mrep = margin_check(o, side, qty, sizing, pf, L, R)
