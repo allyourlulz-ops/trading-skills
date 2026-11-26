@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from gate import parse, verify  # noqa: E402
+from gate import GateDirError, parse, resolve_gate_dir, verify  # noqa: E402
 
 ALPACA_URL = {"paper": "https://paper-api.alpaca.markets", "live": "https://api.alpaca.markets"}
 
@@ -100,6 +100,10 @@ def main() -> None:
         lock = json.load(open(a.lock)) if a.lock and os.path.exists(a.lock) else None
     except (OSError, ValueError) as e:
         print(json.dumps({"gate": "CLOSED", "error": f"bad input: {e}"})); sys.exit(2)
+    try:
+        gd = resolve_gate_dir(a.gate_dir)  # T7
+    except GateDirError as e:
+        print(json.dumps({"gate": "CLOSED", "gate_dir": None, "error": str(e), "reasons": [str(e)]})); sys.exit(2)
     nonce = (a.nonce or (risk or {}).get("nonce") or "").strip()
     why: List[str] = []
     if not nonce:
@@ -114,12 +118,12 @@ def main() -> None:
         why.append("order has no client_order_id")
     t = parse(nonce) if nonce else None
     if mode and nonce:
-        ok, gw, t = verify(nonce, o, mode, a.limits, a.gate_dir, a.allow_override, a.now, consume=not why)
+        ok, gw, t = verify(nonce, o, mode, a.limits, gd, a.allow_override, a.now, consume=not why)
         why += gw
     lines = render(o, mode, url, nonce or "MISSING", t, risk, why)
     res = {"mode": mode or "unknown", "endpoint": url, "gate": "OPEN" if not why else "CLOSED",
            "override": bool(t and t.get("verdict") == "OVERRIDE"), "nonce": nonce or None,
-           "preview_first_line": lines[0], "preview": lines, "reasons": why}
+           "preview_first_line": lines[0], "preview": lines, "reasons": why, "gate_dir": gd}
     print(json.dumps(res, indent=2) if a.json else "\n".join(lines))
     sys.exit(0 if not why else 1)
 
