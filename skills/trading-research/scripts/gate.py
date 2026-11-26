@@ -7,11 +7,13 @@ Nonce (one line, dot-separated):
   VERDICT  PASS | FAIL | OVERRIDE
   mode     paper | live | unknown   (unknown never opens)
   mac      HMAC-SHA256 over everything before it, keyed by <gate_dir>/gate.key (created 0600 on first use)
-fingerprint = sha256 of the whole order JSON (sorted keys; keys starting with "_" ignored), first 16 hex.
-Any change to the order after the check (account, time in force, legs, qty, price) closes the gate.
+fingerprint = sha256 of the whole order JSON (sorted keys; keys starting with "_" ignored) together with the
+full sha256 of the risk-limits file's bytes, first 16 hex. Any change to the order after the check
+(account, time in force, legs, qty, price) or to the limits file closes the gate. verify needs --limits:
+without it, or with a missing file, the gate is CLOSED (T6).
 
 Commands
-  gate.py verify --nonce N --order order.json --mode paper|live [--limits L] [--gate-dir D]
+  gate.py verify --nonce N --order order.json --mode paper|live --limits L [--gate-dir D]
                  [--allow-override] [--no-consume] [--now ISO]
       OPEN only if: mac valid, issued here (gate-log.jsonl), unused, not expired (by --now AND by this
       machine's clock since issue: a rewound --now cannot reopen a nonce; TTL capped at 300 s), fingerprint equals this
@@ -39,8 +41,11 @@ MAX_TTL = 300  # nonces live at most 5 minutes, whatever the limits file says
 VERSION = "RC2"
 
 
-def fingerprint(order: Dict[str, Any]) -> str:
-    body = json.dumps({k: v for k, v in order.items() if not str(k).startswith("_")}, sort_keys=True)
+def fingerprint(order: Dict[str, Any], limits_sha256: Optional[str] = None) -> str:
+    """sha256 of the order JSON and, when given, the full sha256 of the limits file's bytes (T6), first 16 hex.
+    risk_check and verify always bind the limits; the order-only form is kept for callers that hash orders."""
+    o = {k: v for k, v in order.items() if not str(k).startswith("_")}
+    body = json.dumps(o if limits_sha256 is None else {"order": o, "limits_sha256": limits_sha256}, sort_keys=True)
     return hashlib.sha256(body.encode()).hexdigest()[:16]
 
 
@@ -59,10 +64,15 @@ def _key(d: str) -> bytes:
     return open(p).read().strip().encode()
 
 
+def file_sha256(path: Optional[str]) -> str:
+    """Content hash of the limits file. A missing file is an error, never a placeholder (T6)."""
+    if not path or not os.path.isfile(path):
+        raise ValueError("risk-limits file not found: %r" % (path,))
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
+
+
 def file_sha8(path: Optional[str]) -> str:
-    if not path or not os.path.exists(path):
-        return "nolimits"
-    return hashlib.sha256(open(path, "rb").read()).hexdigest()[:8]
+    return file_sha256(path)[:8]
 
 
 def _mac(key: bytes, body: str) -> str:
@@ -156,10 +166,18 @@ def verify(tok: str, order: Dict[str, Any], mode: str, limits_path: Optional[str
         why.append("nonce already used for an order; run risk_check again")
     if _now(now) > int(t["exp"]):
         why.append("nonce expired; run risk_check again on a fresh quote")
-    if t["fp"] != fingerprint(order):
-        why.append("order differs from the one risk_check checked")
-    if limits_path and t["lim"] != file_sha8(limits_path):
+    lsha = None
+    if not limits_path:
+        why.append("no limits file given: verify needs the risk-limits file the check used (--limits)")
+    else:
+        try:
+            lsha = file_sha256(limits_path)
+        except ValueError as e:
+            why.append(str(e))
+    if lsha is not None and (t["lim"] != lsha[:8]):
         why.append("risk-limits file changed since the check")
+    if t["fp"] != fingerprint(order, lsha) or lsha is None:
+        why.append("order differs from the one risk_check checked (the fingerprint binds the order and the limits file)")
     if t["mode"] == "unknown":
         why.append("mode unknown at check time")
     elif t["mode"] != mode:
@@ -179,7 +197,7 @@ def main() -> None:
     sp = ap.add_subparsers(dest="cmd", required=True)
     v = sp.add_parser("verify"); lg = sp.add_parser("log")
     v.add_argument("--nonce", required=True); v.add_argument("--order", required=True); v.add_argument("--now")
-    v.add_argument("--mode", required=True, choices=["paper", "live"]); v.add_argument("--limits")
+    v.add_argument("--mode", required=True, choices=["paper", "live"]); v.add_argument("--limits", help="required in effect: without it the gate is CLOSED")
     v.add_argument("--allow-override", action="store_true"); v.add_argument("--no-consume", action="store_true")
     for p in (v, lg):
         p.add_argument("--gate-dir")
