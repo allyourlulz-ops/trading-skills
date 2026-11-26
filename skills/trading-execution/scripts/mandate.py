@@ -54,6 +54,18 @@ def load_ledger(p):
     return [json.loads(l) for l in open(p) if l.strip()]
 
 
+def ledger_position(L, mandate_id, sym):
+    """Net quantity of sym this mandate opened and has not closed, from the ledger (reversed rows excluded)."""
+    rev = {r["reverses"] for r in L if r.get("reverses")}
+    net = 0.0
+    for r in L:
+        if r.get("mandate_id") != mandate_id or r.get("reverses") or r.get("client_order_id") in rev:
+            continue
+        if str(r.get("symbol", "")).upper() == sym:
+            net += (-1 if r.get("is_exit") else 1) * float(r.get("qty") or 0)
+    return net
+
+
 def today_rows(L, day):
     return [r for r in L if str(r.get("ts", ""))[:10] == day]
 
@@ -127,14 +139,20 @@ def check(a):
         ok, why, _t = verify(tok, o, M.get("mode", "paper"), getattr(a, "limits", None), getattr(a, "gate_dir", None),
                              False, a.now, consume=False)
         need += ["gate: " + w for w in why]
+    # scope applies to exits too (T3: the old is_exit skip let any held symbol auto-trade)
+    sym = str(o.get("symbol", "")).upper()
+    if [s_.upper() for s_ in M.get("symbols", [])] and sym not in [s_.upper() for s_ in M["symbols"]]:
+        need.append(sym + " not in the mandate's symbols")
+    if o.get("strategy") not in M.get("strategies", []):
+        need.append("strategy %r not in the mandate" % o.get("strategy"))
+    if o.get("asset_class", "equity") not in M.get("asset_classes", ["equity"]):
+        need.append("asset class %s not in the mandate" % o.get("asset_class", "equity"))
+    if is_exit:
+        held = ledger_position(L, M.get("id"), sym)
+        if held + 1e-9 < float(o.get("qty", 0) or 0):
+            need.append("no open %s position of %s recorded under this mandate (ledger holds %g): an exit "
+                        "outside what the mandate opened needs a per-order yes" % (sym, o.get("qty"), held))
     if not is_exit:
-        sym = str(o.get("symbol", "")).upper()
-        if [s.upper() for s in M.get("symbols", [])] and sym not in [s.upper() for s in M["symbols"]]:
-            need.append(sym + " not in the mandate's symbols")
-        if o.get("strategy") not in M.get("strategies", []):
-            need.append("strategy %r not in the mandate" % o.get("strategy"))
-        if o.get("asset_class", "equity") not in M.get("asset_classes", ["equity"]):
-            need.append("asset class %s not in the mandate" % o.get("asset_class", "equity"))
         if o.get("side") == "sell" and not M.get("allow_short", False):
             need.append("short entries are not in the mandate")
         px = o.get("limit_price") or o.get("price") or 0
