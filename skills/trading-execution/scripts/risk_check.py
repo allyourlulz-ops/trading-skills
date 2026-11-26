@@ -466,8 +466,10 @@ def _main() -> None:
         now = now.astimezone(tz)  # P3
         clock: Dict[str, Any] = {}
         margin: Dict[str, Any] = {}
-        R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), ld(a.instrument), ld(a.bar),
+        inst = ld(a.instrument)
+        R, warns, sizing, used = evaluate(o, pf, L, a.mode, ld(a.contract), inst, ld(a.bar),
                                           ld(a.context), now, tz, clock, margin)
+        ac_derived = resolve_asset_class(str(o["symbol"]), o.get("asset_class"), inst)[0]
     except (OSError, ValueError, KeyError, TypeError) as e:
         print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
     lsha = file_sha256(a.limits)  # T6: the limits contents are bound into the fingerprint
@@ -486,7 +488,8 @@ def _main() -> None:
     ttl = int((L.get("gate") or {}).get("token_ttl_s", 300))
     nonce = issue(verdict, fp, a.mode, a.limits, reasons, warns, gd, ttl, now,
                   {"symbol": o.get("symbol"), "qty": o.get("qty"),
-                   "equity": pf.get("equity"), "checked_at": now.isoformat(),  # read back by mandate.py (T5)
+                   "equity": pf.get("equity"), "checked_at": now.isoformat(),  # read back by mandate.py (T5, T8)
+                   "asset_class": ac_derived, "notional": margin.get("order_notional"),
                    "override_reason": (override or {}).get("reason") if verdict == "OVERRIDE" else None,
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
