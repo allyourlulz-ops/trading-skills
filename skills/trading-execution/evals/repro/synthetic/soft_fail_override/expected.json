@@ -42,7 +42,7 @@
    "endpoint": "https://paper-api.alpaca.markets",
    "gate": "OPEN",
    "mode": "paper",
-   "nonce": "RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.OVERRIDE.4ec029122e2f7691.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": true,
    "preview": [
     "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
@@ -52,7 +52,7 @@
     "Purpose: open position",
     "Stop: sent as a bracket leg",
     "client_order_id: repro-soft-fail-override",
-    "Nonce: RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
+    "Nonce: RC2.OVERRIDE.4ec029122e2f7691.paper.<exp>.de832bc8.<rand>.<mac> (expires <exp>)",
     "Gate: OPEN. Send only after the user's explicit yes for this exact order."
    ],
    "preview_first_line": "MODE: PAPER, simulated fills, https://paper-api.alpaca.markets",
@@ -69,7 +69,8 @@
     "source": "alpaca:get_clock",
     "tolerance_s": 120
    },
-   "fingerprint": "31cbb1bb52508079",
+   "fingerprint": "4ec029122e2f7691",
+   "limits_sha256": "de832bc8ec271b35fa3f465a7ba036022b016fcde122dd3c85245caa0f97ab9f",
    "limits_used": {
     "allow_crypto": false,
     "allow_margin": false,
@@ -104,7 +105,7 @@
    },
    "mode": "paper",
    "next": "Override logged. Preview with --allow-override; the preview prints OVERRIDE.",
-   "nonce": "RC2.OVERRIDE.31cbb1bb52508079.paper.<exp>.de832bc8.<rand>.<mac>",
+   "nonce": "RC2.OVERRIDE.4ec029122e2f7691.paper.<exp>.de832bc8.<rand>.<mac>",
    "override": {
     "accepted": true,
     "overridden": [
