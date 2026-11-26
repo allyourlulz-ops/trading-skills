@@ -72,6 +72,13 @@
  "risk_check": {
   "exit": 0,
   "out": {
+   "clock": {
+    "broker_as_of": "2026-11-25T10:30:00-05:00",
+    "drift_s": 0,
+    "now": "2026-11-25T10:30:00-05:00",
+    "source": "synthetic: TSX regular session 09:30-16:00 ET",
+    "tolerance_s": 120
+   },
    "fingerprint": "a4ca018ed0c98671",
    "limits_used": {
     "allow_crypto": false,
@@ -143,6 +150,7 @@
    },
    "verdict": "pass",
    "warnings": [
+    "paper replay: --now is outside the tolerance of this machine's clock (allowed on paper only)",
     "no --context: earnings and market-regime gates skipped; fetch them via the data MCP server"
    ]
   }
