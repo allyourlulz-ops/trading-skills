@@ -26,7 +26,7 @@ contract    see data_contract.py; must contain a role "quote" series for this sy
 bar         {"timeframe":"5m","last_bar_open":"2026-11-25T10:25:00-05:00","closed":true}
 
 Output JSON: {"verdict": "pass"|"fail", "reasons": [...], "limits_used": {...}, "sizing": {...},
-              "nonce": "RC2....", "mode", "fingerprint", "warnings", "override", "checked_at", "clock",
+              "nonce": "RC2....", "mode", "fingerprint", "limits_sha256", "warnings", "override", "checked_at", "clock",
               "margin", "next"}
 Asset class comes from the instrument spec and the symbol's shape, checked against the order's label
 (ASSET_CLASS, HARD, on any disagreement; see position_size.resolve_asset_class).
@@ -49,7 +49,7 @@ except ImportError:  # py<3.9
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from gate import OVERRIDE_ACK, fingerprint, issue  # noqa: E402
+from gate import OVERRIDE_ACK, file_sha256, fingerprint, issue  # noqa: E402
 from position_size import InstrumentError, SizingError, resolve_asset_class, size  # noqa: E402
 from data_contract import check as contract_check  # noqa: E402
 
@@ -469,7 +469,8 @@ def _main() -> None:
                                           ld(a.context), now, tz, clock, margin)
     except (OSError, ValueError, KeyError, TypeError) as e:
         print(json.dumps({"verdict": "fail", "error": f"bad input: {e}", "nonce": None}, indent=2)); sys.exit(2)
-    reasons, fp, override = R.strings(), fingerprint(o), None
+    lsha = file_sha256(a.limits)  # T6: the limits contents are bound into the fingerprint
+    reasons, fp, override = R.strings(), fingerprint(o, lsha), None
     verdict = "FAIL" if reasons else "PASS"
     if a.override is not None and reasons:
         why = []
@@ -488,7 +489,7 @@ def _main() -> None:
                    "override_reason": (override or {}).get("reason") if verdict == "OVERRIDE" else None,
                    "overridden": (override or {}).get("overridden") if verdict == "OVERRIDE" else None})
     out = {"verdict": "fail" if verdict == "FAIL" else "pass", "reasons": reasons, "limits_used": used, "sizing": sizing,
-           "nonce": nonce, "mode": a.mode, "fingerprint": fp, "warnings": warns, "override": override,
+           "nonce": nonce, "mode": a.mode, "fingerprint": fp, "limits_sha256": lsha, "warnings": warns, "override": override,
            "checked_at": now.isoformat(), "clock": clock, "margin": margin,
            "next": ("Do not place this order. " + reasons[0] if verdict == "FAIL" else
                     "Override logged. Preview with --allow-override; the preview prints OVERRIDE." if verdict == "OVERRIDE" else
