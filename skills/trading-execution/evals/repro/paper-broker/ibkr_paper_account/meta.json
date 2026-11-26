@@ -1,0 +1,16 @@
+{
+ "synthetic": false,
+ "broker": "ibkr_paper",
+ "description": "Slot for REAL IBKR paper responses recorded by evals/record_ibkr.py into ibkr/ from the user's own logged-in Client Portal Gateway. Skipped until recorded. The order, quote contract, MCP config and lock here are hand-written templates. The Web API has no clock call: set meta.clock (is_open, source, as_of) from the exchange schedule at the recording time before --bless, or the replay fails NO_CLOCK.",
+ "now": "from_recorded",
+ "mode": "paper",
+ "contract": "contract.json",
+ "config": "mcp-config.json",
+ "lock": "mcp-lock.json",
+ "server": "ibkr",
+ "today": {
+  "trades": 0,
+  "orders": 0,
+  "planned_loss": 0
+ }
+}
