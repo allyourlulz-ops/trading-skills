@@ -1,0 +1,16 @@
+{
+ "decision_time": "{NOW}",
+ "series": [
+  {
+   "name": "RY quote (template, not a recorded quote)",
+   "symbol": "RY",
+   "role": "quote",
+   "source": "template:hand-written",
+   "as_of": "{NOW}",
+   "last_bar_end": "{NOW}",
+   "timeframe": "1m",
+   "adjustment": "raw",
+   "currency": "CAD"
+  }
+ ]
+}
