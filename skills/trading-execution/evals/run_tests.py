@@ -19,6 +19,10 @@ if os.path.isdir(other):
     for f in ("risk_check.py", "position_size.py", "strategy_health.py", "gate.py", "data_contract.py", "mcp_lock.py"):
         same = filecmp.cmp(os.path.join(SCRIPTS, f), os.path.join(other, f), shallow=False)
         print(("PASS " if same else "FAIL ") + f"{f} matches trading-research"); fails += [] if same else [f]
+# P13: the two risk-limits.json copies differ only where intended; execution keeps shorts/options/crypto/margin off
+lg = subprocess.run([sys.executable, os.path.join(HERE, "limits_guard.py")], capture_output=True, text=True)
+print(("PASS " if lg.returncode == 0 else "FAIL ") + "risk-limits copies differ only where intended")
+fails += [] if lg.returncode == 0 else ["limits_guard: " + lg.stdout.strip()]
 # probe mandates: paper only, quarter-size orders
 import json
 m = json.load(open(os.path.join(HERE, "..", "assets", "mandate.example.json")))
